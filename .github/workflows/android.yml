@@ -28,7 +28,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - uses: android-actions/setup-android@v3
+      # El SDK de Android ya viene instalado en ubuntu-latest (ANDROID_HOME)
+      - name: SDK de Android
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" | tail -3
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - uses: gradle/actions/setup-gradle@v4
         with:
