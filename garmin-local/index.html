@@ -1048,11 +1048,13 @@ function renderCoverage(){
 }
 function renderSync(){
   const sy = S.status.sync, bar = $('#syncBar');
+  const st = sy.step || [0, 0], pct = sy.total ? Math.round(sy.done / sy.total * 100) : 0;
+  const paso = st[1] > 1 ? `Paso ${st[0]} de ${st[1]}` : '';
   $('#btnStartSync').disabled = sy.running; $('#btnUpdate').disabled = sy.running;
-  $('#btnUpdate').textContent = sy.running ? `Descargando ${sy.total ? Math.round(sy.done/sy.total*100) : 0} %` : 'Actualizar';
+  $('#btnUpdate').textContent = sy.running ? `Descargando${paso ? ' · ' + st[0] + '/' + st[1] : ''} · ${pct} %` : 'Actualizar';
   bar.hidden = !sy.running && !sy.finished;
-  bar.firstElementChild.style.width = (sy.total ? sy.done / sy.total * 100 : 0) + '%';
-  $('#syncText').textContent = sy.running ? `${sy.current} (${sy.done}/${sy.total})` :
+  bar.firstElementChild.style.width = (sy.running ? pct : 100) + '%';
+  $('#syncText').textContent = sy.running ? `${paso ? paso + ' · ' : ''}${sy.current} (${sy.done}/${sy.total})` :
     sy.finished ? `Última descarga: ${nf(sy.saved)} registros guardados${sy.errors.length ? `, ${sy.errors.length} avisos` : ''}.` : '';
   $('#syncLog').innerHTML = sy.errors.slice(-8).map(e => `<li>${esc(e)}</li>`).join('');
 }

@@ -375,7 +375,7 @@ G = Garmin()
 # ---------------------------------------------------------------- sincronización
 
 SYNC = {"running": False, "total": 0, "done": 0, "current": "", "errors": [],
-        "saved": 0, "started": None, "finished": None, "range": None}
+        "saved": 0, "started": None, "finished": None, "range": None, "step": [0, 0]}
 SYNC_LOCK = threading.Lock()
 
 
@@ -473,7 +473,10 @@ def run_sync(start, end, datasets, with_activities, with_vo2=True):
     tasks = [("ds", ds, s, e) for ds in datasets for s, e in chunks(start, end, CHUNK_DAYS)]
     if with_activities:
         tasks += [("act", None, s, e) for s, e in chunks(start, end, 365)]
-    SYNC.update(total=len(tasks), done=0, errors=[], saved=0, current="",
+    # Dos pasos con su propio progreso: 1) datos diarios y actividades, 2) VO2máx de los .FIT
+    # (cuántos .FIT faltan no se sabe hasta terminar el paso 1)
+    steps = (1 if tasks else 0) + (1 if with_vo2 else 0)
+    SYNC.update(total=len(tasks), done=0, errors=[], saved=0, current="", step=[1, max(steps, 1)],
                 started=time.time(), finished=None, range=[start.isoformat(), end.isoformat()])
     try:
         SYNC["current"] = "Zonas de pulso"
@@ -495,7 +498,7 @@ def run_sync(start, end, datasets, with_activities, with_vo2=True):
         # VO2máx de Garmin: el .FIT de cada actividad de carrera o bici aún no leída
         if with_vo2 and not any("clave" in e for e in SYNC["errors"]):
             pending = vo2_pending(start, end)
-            SYNC["total"] += len(pending)
+            SYNC.update(step=[steps, steps], done=0, total=len(pending))
             fails = 0
             for i, (aid, day, sport) in enumerate(pending):
                 SYNC["current"] = f"VO2máx de Garmin: actividad {i + 1} de {len(pending)} ({day})"

@@ -55,5 +55,8 @@ def sync_state():
     import app
     s = app.SYNC
     current = (s.get("current") or "").replace("\t", " ").replace("\n", " ")
+    step = s.get("step") or [0, 0]
+    if step[1] > 1 and current:
+        current = "Paso %d de %d · %s" % (step[0], step[1], current)
     return "%d\t%d\t%d\t%s\t%d\t%d" % (1 if s["running"] else 0, s["done"], s["total"], current,
                                        s.get("saved") or 0, len(s.get("errors") or []))
