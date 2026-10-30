@@ -7,6 +7,7 @@ sin instalar nada más. Tu clave y tus datos se quedan en la carpeta "datos".
 import base64
 import bisect
 import hmac
+import http.client
 import io
 import json
 import os
@@ -251,6 +252,8 @@ def _open(req, timeout):
         raise ApiError(f"No se pudo conectar con Garmin ({e.reason}). Revisa tu conexión a internet.", 0)
     except TimeoutError:
         raise ApiError("Garmin tardó demasiado en responder.", 0)
+    except (OSError, http.client.HTTPException) as e:   # conexión cortada a mitad (frecuente en el móvil)
+        raise ApiError(f"Se cortó la conexión con Garmin ({e.__class__.__name__}).", 0)
 
 
 class Garmin:
@@ -322,7 +325,7 @@ class Garmin:
             return tok
 
     def request(self, path, binary=False):
-        refreshed, waits, accept = False, 0, ("*/*" if binary else "application/json, */*")
+        refreshed, waits, retries, accept = False, 0, 0, ("*/*" if binary else "application/json, */*")
         while True:
             tok = self.get_token()
             req = urllib.request.Request(BASE + path, headers={
@@ -340,6 +343,11 @@ class Garmin:
                 if e.status == 429 and waits < 3:
                     waits += 1
                     time.sleep(20 * waits)
+                    continue
+                # Fallos puntuales de red o de los servidores de Garmin: reintentar con pausa
+                if e.status in (0, 500, 502, 503, 504) and retries < 3:
+                    retries += 1
+                    time.sleep(5 * retries)
                     continue
                 raise
             if binary:

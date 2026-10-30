@@ -1044,8 +1044,10 @@ function renderSync(){
     sy.finished ? `Última descarga: ${nf(sy.saved)} registros guardados${sy.errors.length ? `, ${sy.errors.length} avisos` : ''}.` : '';
   $('#syncLog').innerHTML = sy.errors.slice(-8).map(e => `<li>${esc(e)}</li>`).join('');
 }
+// En la app de Android: avisa para que la descarga siga con la pantalla apagada
+function keepAlive(){ try { if (window.MyFitnessApp) window.MyFitnessApp.syncStarted(); } catch(e){} }
 async function startSync(body){
-  try { await api('/api/sync', {method:'POST', body}); toast('Descarga en marcha'); await loadStatus(); poll(); }
+  try { await api('/api/sync', {method:'POST', body}); keepAlive(); toast('Descarga en marcha'); await loadStatus(); poll(); }
   catch(e){ toast(e.message, true); }
 }
 function poll(){
@@ -1137,7 +1139,7 @@ new ResizeObserver(() => { drawChart(); drawFitnessCharts(); }).observe($('#char
   try {
     const st = await loadStatus();
     $('#syncFrom').value = addDays(st.today, -365);
-    if (st.sync.running) poll();
+    if (st.sync.running){ keepAlive(); poll(); }
     if (st.key_set) setRange('90');
   } catch(e){
     $('#keyPill').textContent = 'Sin conexión con la aplicación'; $('#keyPill').className = 'pill bad';

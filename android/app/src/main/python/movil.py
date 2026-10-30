@@ -46,3 +46,12 @@ def start(files_dir, token):
     threading.Thread(target=srv.serve_forever, name="garmin-local", daemon=True).start()
     _server = srv
     return srv.server_address[1]
+
+
+def sync_state():
+    """Estado de la descarga para la notificación: en curso, hechas, total, aviso, errores."""
+    import app
+    s = app.SYNC
+    current = (s.get("current") or "").replace("\t", " ").replace("\n", " ")
+    return "%d\t%d\t%d\t%s\t%d\t%d" % (1 if s["running"] else 0, s["done"], s["total"], current,
+                                       s.get("saved") or 0, len(s.get("errors") or []))

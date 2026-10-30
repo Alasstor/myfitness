@@ -1,14 +1,18 @@
 package com.alasstor.myfitness;
 
 import android.app.Activity;
+import android.Manifest;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.text.TextUtils;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -58,6 +62,14 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(true);
+
+        // Puente con la página: al empezar una descarga, arranca el servicio que la mantiene viva
+        web.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void syncStarted() {
+                runOnUiThread(MainActivity.this::startSyncService);
+            }
+        }, "MyFitnessApp");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -132,6 +144,19 @@ public class MainActivity extends Activity {
                         "text/html", "utf-8", null));
             }
         }, "arranque").start();
+    }
+
+    private void startSyncService() {
+        // Android 13+: permiso para mostrar la notificación de progreso (si no, la descarga sigue igual)
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 7);
+        }
+        try {
+            startForegroundService(new Intent(this, SyncService.class));
+        } catch (Exception e) {
+            Toast.makeText(this, "Mantén la app abierta durante la descarga", Toast.LENGTH_LONG).show();
+        }
     }
 
     private static String page(String title, String body) {
