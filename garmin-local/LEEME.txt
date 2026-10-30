@@ -39,6 +39,13 @@ La API no lo da directamente: la aplicación descarga el archivo original de cad
 de carrera o bici y lo lee de ahí. "Actualizar" lo hace solo con las actividades nuevas.
 Para el histórico, usa "Histórico" con la casilla "VO2máx de Garmin" marcada (tarda más).
 
+TENER SIEMPRE LA ÚLTIMA VERSIÓN
+Al abrir la aplicación, si hay una versión nueva en GitHub, sale un aviso arriba con el botón
+"Actualizar ahora". También en Ajustes → Versión → "Buscar actualización".
+Descarga solo los archivos que han cambiado, los comprueba y los sustituye; tus datos no se
+tocan. La versión anterior queda en datos\programa-anterior por si hiciera falta volver.
+Después cierra la ventana negra y vuelve a abrir la aplicación.
+
 DÓNDE SE GUARDA TODO
 En la carpeta "datos", junto a la aplicación:
 - config.json: tu clave. No compartas este archivo.

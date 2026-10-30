@@ -6,12 +6,14 @@ sin instalar nada más. Tu clave y tus datos se quedan en la carpeta "datos".
 """
 import base64
 import bisect
+import hashlib
 import hmac
 import http.client
 import io
 import json
 import os
 import re
+import shutil
 import sqlite3
 import statistics
 import sys
@@ -47,6 +49,11 @@ CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 # En el móvil, el servidor local exige este código secreto (cookie mf_token) para que
 # ninguna otra app del teléfono pueda leer tus datos. En el PC no se usa.
 TOKEN = os.environ.get("GARMIN_LOCAL_TOKEN") or ""
+
+# Actualizaciones: el repositorio de GitHub es la fuente de la última versión
+REPO = os.environ.get("GARMIN_LOCAL_REPO", "Alasstor/myfitness")
+PLATFORM = os.environ.get("GARMIN_LOCAL_PLATFORM", "pc")      # "pc" o "android"
+BUILD = int(os.environ.get("GARMIN_LOCAL_BUILD") or 0)       # número de versión del APK
 
 CHUNK_DAYS = 28      # tamaño de cada petición por rango de fechas
 PAUSE = float(os.environ.get("GARMIN_LOCAL_PAUSE", "0.35"))  # pausa entre peticiones
@@ -632,6 +639,107 @@ def import_backup(raw):
     return done
 
 
+# ---------------------------------------------------------------- actualizaciones
+
+def _gh(url, binary=False):
+    accept = "application/vnd.github.raw" if binary else "application/vnd.github+json"
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": accept})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = r.read()
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429):
+            raise ApiError("GitHub limita las consultas por hora. Inténtalo más tarde.", 503)
+        if e.code == 404:
+            raise ApiError(f"No encuentro el repositorio {REPO} (¿es privado?).", 404)
+        raise ApiError(f"GitHub respondió {e.code}.", 502)
+    except (urllib.error.URLError, OSError) as e:
+        raise ApiError(f"No se pudo conectar con GitHub ({e}).", 0)
+    return data if binary else json.loads(data)
+
+
+def _blob_sha(data):
+    # El mismo identificador que usa Git para el contenido de un archivo
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def _repo_files():
+    items = _gh(f"https://api.github.com/repos/{REPO}/contents/garmin-local?ref=main")
+    return [it for it in items if isinstance(it, dict) and it.get("type") == "file"]
+
+
+def check_update():
+    """¿Hay versión nueva? En el móvil mira el último APK publicado; en el PC compara los archivos."""
+    if PLATFORM == "android":
+        rel = _gh(f"https://api.github.com/repos/{REPO}/releases/latest")
+        tag = rel.get("tag_name") or ""
+        m = re.search(r"(\d+)$", tag)
+        latest = int(m.group(1)) if m else 0
+        apk = next((a.get("browser_download_url") for a in rel.get("assets") or []
+                    if str(a.get("name", "")).endswith(".apk")), None)
+        return {"platform": "android", "current": f"1.0.{BUILD}" if BUILD else "?",
+                "latest": tag.lstrip("v"), "available": bool(BUILD and latest > BUILD and apk),
+                "url": apk or rel.get("html_url")}
+    changed = []
+    for it in _repo_files():
+        try:
+            with open(os.path.join(HERE, it["name"]), "rb") as f:
+                local = _blob_sha(f.read())
+        except OSError:
+            local = None
+        if local != it.get("sha"):
+            changed.append(it["name"])
+    return {"platform": "pc", "available": bool(changed), "changed": changed}
+
+
+def apply_update():
+    """PC: descarga la última versión de garmin-local/, la comprueba y sustituye los archivos.
+
+    Los datos no se tocan (están en la carpeta datos) y la versión anterior se guarda en
+    datos/programa-anterior por si hubiera que volver atrás.
+    """
+    if PLATFORM != "pc":
+        raise ApiError("En el móvil se actualiza instalando el APK nuevo.", 400)
+    if SYNC["running"]:
+        raise ApiError("Espera a que termine la descarga en curso.", 409)
+    new = {}
+    for it in _repo_files():
+        data = _gh(it["url"], binary=True)       # contenido del archivo por la API de GitHub
+        if _blob_sha(data) != it.get("sha"):
+            raise ApiError("Un archivo no se descargó bien. Inténtalo más tarde.", 502)
+        if it["name"].endswith(".py"):
+            try:
+                compile(data, it["name"], "exec")
+            except SyntaxError as e:
+                raise ApiError(f"La versión nueva tiene un error en {it['name']}: no se instala.", 502)
+        new[it["name"]] = data
+    if "app.py" not in new or "index.html" not in new:
+        raise ApiError("La versión del repositorio está incompleta: no se instala.", 502)
+    changed = []
+    for name, data in new.items():
+        dest = os.path.join(HERE, name)
+        try:
+            with open(dest, "rb") as f:
+                if f.read() == data:
+                    continue
+        except OSError:
+            pass
+        changed.append(name)
+    if not changed:
+        return []
+    backup = os.path.join(DATA_DIR, "programa-anterior")
+    os.makedirs(backup, exist_ok=True)
+    for name in changed:
+        if os.path.exists(os.path.join(HERE, name)):
+            shutil.copy2(os.path.join(HERE, name), os.path.join(backup, name))
+    for name in changed:
+        tmp = os.path.join(HERE, name + ".nuevo")
+        with open(tmp, "wb") as f:
+            f.write(new[name])
+        os.replace(tmp, os.path.join(HERE, name))
+    return sorted(changed)
+
+
 def get_status():
     cfg = load_config()
     key = cfg.get("api_key") or ""
@@ -652,6 +760,7 @@ def get_status():
         "activities": {"first": a[0], "last": a[1], "count": a[2]},
         "vo2files": {"read": v[0], "with_vo2": v[1] or 0, "first": v[2], "unread_activities": pend},
         "sync": SYNC, "today": date.today().isoformat(), "settings": get_settings(),
+        "platform": PLATFORM, "build": BUILD, "repo": REPO,
     }
 
 
@@ -1053,6 +1162,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+            elif u.path == "/api/update/check":
+                self.send_json(check_update())
             elif u.path == "/api/export":
                 data = export_backup()
                 self.send_response(200)
@@ -1104,6 +1215,8 @@ class Handler(BaseHTTPRequestHandler):
                 save_config(cfg)
                 G.reset()
                 self.send_json({"ok": True})
+            elif u.path == "/api/update":
+                self.send_json({"ok": True, "changed": apply_update()})
             elif u.path == "/api/settings":
                 save_settings(body)
                 self.send_json({"ok": True, "settings": get_settings()})

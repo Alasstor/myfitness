@@ -130,7 +130,7 @@ public class MainActivity extends Activity {
                 if (!Python.isStarted()) Python.start(new AndroidPlatform(getApplicationContext()));
                 if (port == 0) {
                     port = Python.getInstance().getModule("movil")
-                            .callAttr("start", getFilesDir().getAbsolutePath(), TOKEN).toInt();
+                            .callAttr("start", getFilesDir().getAbsolutePath(), TOKEN, versionCode()).toInt();
                 }
                 String url = "http://127.0.0.1:" + port + "/";
                 runOnUiThread(() -> {
@@ -144,6 +144,15 @@ public class MainActivity extends Activity {
                         "text/html", "utf-8", null));
             }
         }, "arranque").start();
+    }
+
+    private int versionCode() {
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return (int) (Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode);
+        } catch (PackageManager.NameNotFoundException e) {
+            return 0;
+        }
     }
 
     private void startSyncService() {

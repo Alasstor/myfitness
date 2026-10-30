@@ -10,7 +10,7 @@ import threading
 _server = None
 
 
-def start(files_dir, token):
+def start(files_dir, token, build=0):
     """Arranca el servidor (una sola vez por proceso) y devuelve el puerto."""
     global _server
     if _server is not None:
@@ -20,6 +20,8 @@ def start(files_dir, token):
     os.environ["GARMIN_LOCAL_DATA"] = os.path.join(files_dir, "datos")
     os.environ["GARMIN_LOCAL_NO_BROWSER"] = "1"
     os.environ["GARMIN_LOCAL_TOKEN"] = token
+    os.environ["GARMIN_LOCAL_PLATFORM"] = "android"
+    os.environ["GARMIN_LOCAL_BUILD"] = str(build)
 
     import app
     from http.server import ThreadingHTTPServer

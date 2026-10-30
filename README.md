@@ -19,6 +19,13 @@ Cualquier mejora en `garmin-local/` llega a las dos.
 
 Para pasar tus datos del PC: en el PC, **Ajustes → Copia de seguridad → Exportar copia**, y en el móvil, **Importar archivo…** Otra opción es elegir directamente `garmin.sqlite` y `config.json` de la carpeta `datos` si está en Google Drive.
 
+## Mantener las dos al día
+
+- **Móvil**: al abrir la app, si hay una versión nueva en Releases sale el aviso «Hay una versión nueva» con el botón para descargar e instalar el APK (se instala encima, sin perder datos).
+- **PC**: sale el aviso con «Actualizar ahora», que descarga de este repositorio los archivos de `garmin-local/` que hayan cambiado, los verifica y los sustituye. Después hay que cerrar y volver a abrir la aplicación. La versión anterior queda en `datos/programa-anterior`.
+
+El aviso del PC consulta la API pública de GitHub, así que el repositorio tiene que seguir siendo público.
+
 ## Cómo se compila
 
 Cada cambio en `android/` o `garmin-local/` lanza el workflow **APK de Android**, que compila el APK y lo publica en Releases.

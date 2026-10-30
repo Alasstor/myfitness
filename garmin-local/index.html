@@ -137,6 +137,8 @@ tr:hover td{background:var(--surface-2)}
 .plan-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px}
 .plan-steps{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:15px}
 .plan-body .reasons{margin-top:8px}
+.update-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:12px 16px;font-size:15px}
+.update-bar a.btn.primary{color:var(--surface)}
 .plan-rest{margin:0;font-size:15px;background:var(--warn-soft);color:var(--ink);border-radius:8px;padding:10px 12px}
 .plan .note{margin:0}
 .plan-note{margin:0;font-size:15px;color:var(--warn)}
@@ -203,6 +205,11 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 
 <main>
   <!-- Configuración inicial -->
+  <section class="update-bar" id="updateBar" hidden>
+    <span id="updateText"></span>
+    <span class="row"><a class="btn small primary" id="updateGet" hidden>Descargar e instalar</a><button class="btn small primary" id="updateApply" hidden>Actualizar ahora</button><button class="btn small" id="updateLater">Más tarde</button></span>
+  </section>
+
   <section class="card setup" id="setup" hidden>
     <h2>Conecta tu cuenta de Garmin</h2>
     <p class="sub">Necesitas una clave de la Personal API. Se crea en un minuto y no requiere aprobación.</p>
@@ -434,6 +441,11 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <button class="btn small primary" id="btnSaveSettings">Guardar</button>
     </div>
     <p class="err" id="setErr" hidden></p>
+  </div>
+  <div class="field" style="margin-top:20px">
+    <span class="label">Versión</span>
+    <p class="note" id="verInfo">—</p>
+    <div class="row"><button class="btn small" id="btnCheckUpdate">Buscar actualizaciones</button></div>
   </div>
   <div class="field" style="margin-top:20px">
     <span class="label">Copia de seguridad</span>
@@ -1108,6 +1120,47 @@ document.querySelectorAll('.import-file').forEach(inp => inp.onchange = async ()
     await loadStatus(); setRange(S.range);
   } catch(e){ toast(e.message, true); }
 });
+// ---------- actualizaciones
+async function checkUpdate(manual){
+  const btn = $('#btnCheckUpdate'); if (manual){ btn.disabled = true; btn.textContent = 'Buscando…'; }
+  try {
+    const u = await api('/api/update/check');
+    renderUpdate(u, manual);
+  } catch(e){ if (manual) toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = 'Buscar actualizaciones'; }
+}
+function renderUpdate(u, manual){
+  const bar = $('#updateBar');
+  $('#updateGet').hidden = $('#updateApply').hidden = true;
+  let dismissed = null; try { dismissed = sessionStorage.getItem('updDismiss'); } catch(e){}
+  const key = u.platform === 'android' ? u.latest : (u.changed || []).join(',');
+  if (u.platform === 'android') $('#verInfo').textContent = `App de Android, versión ${u.current}. Última publicada: ${u.latest || '—'}.`;
+  else $('#verInfo').textContent = u.available ? `Programa del PC: hay cambios en ${u.changed.join(', ')}.` : 'Programa del PC: tienes la última versión.';
+  if (!u.available){ bar.hidden = true; if (manual) toast('Tienes la última versión.'); return; }
+  if (!manual && dismissed === key){ bar.hidden = true; return; }
+  bar.dataset.key = key;
+  if (u.platform === 'android'){
+    $('#updateText').textContent = `Hay una versión nueva de la app: ${u.latest} (tienes la ${u.current}). Se instala encima, sin perder datos.`;
+    $('#updateGet').href = u.url; $('#updateGet').hidden = false;
+  } else {
+    $('#updateText').textContent = `Hay una versión nueva del programa (${u.changed.length === 1 ? '1 archivo' : u.changed.length + ' archivos'}). Tus datos no se tocan.`;
+    $('#updateApply').hidden = false;
+  }
+  bar.hidden = false;
+  if (manual){ try { $('#settings').close(); } catch(e){} }
+}
+$('#btnCheckUpdate').onclick = () => checkUpdate(true);
+$('#updateLater').onclick = () => { try { sessionStorage.setItem('updDismiss', $('#updateBar').dataset.key || ''); } catch(e){} $('#updateBar').hidden = true; };
+$('#updateApply').onclick = async () => {
+  const b = $('#updateApply'); b.disabled = true; b.textContent = 'Actualizando…';
+  try {
+    const r = await api('/api/update', {method: 'POST'});
+    $('#updateText').textContent = r.changed.length
+      ? 'Actualizado. Cierra la ventana negra de Garmin Local y vuelve a abrir la aplicación para usar la versión nueva.'
+      : 'Ya tenías la última versión.';
+    b.hidden = true;
+  } catch(e){ toast(e.message, true); b.disabled = false; b.textContent = 'Actualizar ahora'; }
+};
 $('#btnProbe').onclick = async () => {
   const out = $('#probeOut'); out.hidden = false; out.textContent = 'Consultando…';
   try { const r = await api('/api/probe?path=' + encodeURIComponent($('#probePath').value.trim())); out.textContent = JSON.stringify(r.result, null, 2); }
@@ -1141,6 +1194,7 @@ new ResizeObserver(() => { drawChart(); drawFitnessCharts(); }).observe($('#char
     $('#syncFrom').value = addDays(st.today, -365);
     if (st.sync.running){ keepAlive(); poll(); }
     if (st.key_set) setRange('90');
+    setTimeout(() => checkUpdate(false), 1500);
   } catch(e){
     $('#keyPill').textContent = 'Sin conexión con la aplicación'; $('#keyPill').className = 'pill bad';
     toast('No responde el servidor local. ¿Sigue abierta la ventana de Garmin Local?', true);
