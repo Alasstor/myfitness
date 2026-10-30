@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import sqlite3
+import ssl
 import statistics
 import sys
 import threading
@@ -641,6 +642,8 @@ def import_backup(raw):
 
 # ---------------------------------------------------------------- actualizaciones
 
+_WINDOWS = os.name == "nt"
+
 def _gh(url, binary=False):
     accept = "application/vnd.github.raw" if binary else "application/vnd.github+json"
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": accept})
@@ -648,14 +651,58 @@ def _gh(url, binary=False):
         with urllib.request.urlopen(req, timeout=30) as r:
             data = r.read()
     except urllib.error.HTTPError as e:
-        if e.code in (403, 429):
-            raise ApiError("GitHub limita las consultas por hora. Inténtalo más tarde.", 503)
-        if e.code == 404:
-            raise ApiError(f"No encuentro el repositorio {REPO} (¿es privado?).", 404)
-        raise ApiError(f"GitHub respondió {e.code}.", 502)
+        _gh_status_error(e.code)
     except (urllib.error.URLError, OSError) as e:
-        raise ApiError(f"No se pudo conectar con GitHub ({e}).", 0)
+        cert = isinstance(getattr(e, "reason", e), ssl.SSLCertVerificationError)
+        if not (cert and _WINDOWS):
+            raise ApiError(f"No se pudo conectar con GitHub ({e}).", 0)
+        # Python no tiene el certificado raíz de GitHub en su lista; Windows sí sabe conseguirlo
+        data = _gh_powershell(url, accept)
     return data if binary else json.loads(data)
+
+
+def _gh_status_error(code):
+    if code in (403, 429):
+        raise ApiError("GitHub limita las consultas por hora. Inténtalo más tarde.", 503)
+    if code == 404:
+        raise ApiError(f"No encuentro el repositorio {REPO} (¿es privado?).", 404)
+    raise ApiError(f"GitHub respondió {code}.", 502)
+
+
+def _gh_powershell(url, accept):
+    """Descarga con PowerShell, que usa los certificados de Windows (y descarga el raíz si falta)."""
+    import subprocess
+    import tempfile
+    fd, tmp = tempfile.mkstemp(prefix="garmin-local-")
+    os.close(fd)
+    q = lambda v: "'" + str(v).replace("'", "''") + "'"
+    script = ("$ProgressPreference='SilentlyContinue';"
+              "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;"
+              f"try{{Invoke-WebRequest -UseBasicParsing -Uri {q(url)} -UserAgent {q(UA)} "
+              f"-Headers @{{Accept={q(accept)}}} -OutFile {q(tmp)};exit 0}}"
+              "catch{$r=$_.Exception.Response;if($r){[Console]::Error.WriteLine('HTTP '+[int]$r.StatusCode);exit 2};"
+              "[Console]::Error.WriteLine($_.Exception.Message);exit 1}")
+    try:
+        p = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, text=True, timeout=90,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if p.returncode == 0:
+            with open(tmp, "rb") as f:
+                return f.read()
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ApiError(f"No se pudo conectar con GitHub: Python no reconoce su certificado y "
+                       f"PowerShell no respondió ({e}).", 0)
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    m = re.search(r"HTTP (\d{3})", p.stderr or "")
+    if m:
+        _gh_status_error(int(m.group(1)))
+    msg = (p.stderr or "").strip().splitlines()
+    raise ApiError("No se pudo conectar con GitHub: el certificado no es de confianza en este "
+                   f"equipo ({msg[-1][:200] if msg else 'sin detalle'}).", 0)
 
 
 def _blob_sha(data):
