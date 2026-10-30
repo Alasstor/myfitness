@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garmin Local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: cabecera fija de instrumento, rejilla de métricas, gráfica explorable y registro de actividades */
+:root{
+  --bg:#eef1ee; --surface:#ffffff; --surface-2:#f5f7f5; --ink:#15201b; --muted:#5b6a63;
+  --line:#d6ddd9; --accent:#0d7357; --accent-soft:#d8ece5; --trend:#c9701c; --bad:#b0412b; --bad-soft:#f6e1db;
+  --warn:#a56a00; --warn-soft:#f7ecd2; --ok-soft:#dcefe6; --c3:#2f62b8; --c4:#8a4fb0; --c5:#8a948f;
+  --display:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+  --body:'Source Sans 3',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0d1311; --surface:#141c19; --surface-2:#1a2420; --ink:#e4ebe7; --muted:#8e9f98;
+    --line:#26332e; --accent:#43c39c; --accent-soft:#16352b; --trend:#eea154; --bad:#e8775f; --bad-soft:#3a201a;
+    --warn:#e7b54a; --warn-soft:#3a2f14; --ok-soft:#14302a; --c3:#6f9ef0; --c4:#c08ae0; --c5:#7d8a85;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+a{color:var(--accent)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top-inner{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font:700 28px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:0}
+.brand h1 span{color:var(--accent)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.ok::before{background:var(--accent)}
+.pill.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+.pill.bad::before{background:var(--bad)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:600;font-size:15px;cursor:pointer}
+a.btn,label.btn{display:inline-block;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.small{padding:5px 10px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.link{border:none;background:none;color:var(--accent);padding:4px 6px}
+
+main{max-width:1180px;margin:0 auto;padding:24px 20px 64px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.card h2{font:600 24px/1.1 var(--display);letter-spacing:.02em;margin:0 0 4px}
+.sub{color:var(--muted);margin:0;font-size:15px}
+.label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* Configuración inicial */
+.setup{max-width:640px}
+.setup ol{padding-left:20px;margin:14px 0;display:flex;flex-direction:column;gap:6px}
+.field{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=password],input[type=text],input[type=date],select{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+input[type=password],input[type=text]{flex:1}
+.note{font-size:14px;color:var(--muted)}
+.err{color:var(--bad);font-size:14px}
+
+/* Sincronización */
+.sync-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:14px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 14px}
+.checks label{display:flex;gap:6px;align-items:center;font-size:15px}
+.progress{height:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:12px}
+.progress > div{height:100%;background:var(--accent);width:0;transition:width .3s}
+.log{font-size:13px;color:var(--bad);margin:8px 0 0;padding-left:18px}
+.coverage{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 16px;margin-top:10px;font-size:14px}
+.coverage div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed var(--line);padding-bottom:3px}
+.coverage .mono{color:var(--muted);font-size:13px}
+
+/* Rango */
+.rangebar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:none;background:none;padding:7px 13px;font-weight:600;font-size:14px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--surface)}
+.rangebar .dates{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:14px}
+
+/* Métricas */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 14px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile:hover{border-color:var(--accent)}
+.tile[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tile .val{font:600 34px/1.05 var(--display);letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.tile .val small{font:500 15px var(--body);color:var(--muted);margin-left:4px}
+.tile .meta{font-size:13px;color:var(--muted)}
+.tile svg{width:100%;height:34px;margin-top:6px;display:block}
+
+/* Gráfica */
+.chart-head{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;justify-content:space-between}
+.chart-head select{max-width:100%}
+.chart-wrap{position:relative;margin-top:14px;min-width:0}
+.chart-wrap svg{display:block;width:100%;height:320px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:13px;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%)}
+.legend{display:flex;gap:16px;font-size:14px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:6px}
+.stats div{display:flex;flex-direction:column}
+.stats b{font:600 22px var(--display);font-variant-numeric:tabular-nums}
+details.raw{margin-top:12px}
+details.raw summary{cursor:pointer;color:var(--muted);font-size:14px}
+pre{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;max-height:360px;font:13px/1.45 var(--mono)}
+.empty{color:var(--muted);text-align:center;padding:40px 10px}
+
+/* Actividades */
+.table-wrap{overflow-x:auto;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:15px;min-width:760px}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px}
+td .t{font-size:13px;color:var(--muted)}
+tr:hover td{background:var(--surface-2)}
+
+/* Estado de forma */
+.section-title{font:700 15px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:8px 0 -6px;display:flex;align-items:center;gap:10px}
+.section-title::after{content:"";flex:1;height:1px;background:var(--line)}
+.plan{display:flex;flex-direction:column;gap:16px;border-left:4px solid var(--accent)}
+.plan.k-descanso{border-left-color:var(--c5)}.plan.k-recuperacion,.plan.k-suave{border-left-color:var(--trend)}.plan.k-umbral,.plan.k-vo2{border-left-color:var(--bad)}
+.plan-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.plan-title{font:700 34px/1.05 var(--display);letter-spacing:.02em;margin:4px 0 2px}
+.plan-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.plan-nums > div{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.plan-nums b{display:block;font:600 26px/1.1 var(--display);font-variant-numeric:tabular-nums;margin-top:2px;white-space:nowrap}
+.plan-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px}
+.plan-steps{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:15px}
+.plan-body .reasons{margin-top:8px}
+.plan-rest{margin:0;font-size:15px;background:var(--warn-soft);color:var(--ink);border-radius:8px;padding:10px 12px}
+.plan .note{margin:0}
+.plan-note{margin:0;font-size:15px;color:var(--warn)}
+#planSports button.off{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+#planSports button.off[aria-pressed=true]{text-decoration:none;color:var(--surface)}
+.verdict{border-radius:10px;padding:16px;background:var(--surface-2);border:1px solid var(--line)}
+.verdict .v{font:700 30px/1.05 var(--display);letter-spacing:.02em;margin-top:4px}
+.verdict.ok{background:var(--ok-soft);border-color:transparent}.verdict.ok .v{color:var(--accent)}
+.verdict.warn{background:var(--warn-soft);border-color:transparent}.verdict.warn .v{color:var(--warn)}
+.verdict.bad{background:var(--bad-soft);border-color:transparent}.verdict.bad .v{color:var(--bad)}
+.reasons{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.reasons li{display:flex;gap:10px;align-items:baseline;font-size:15px}
+.reasons li::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--c5);transform:translateY(-1px)}
+.reasons li.ok::before{background:var(--accent)}.reasons li.warn::before{background:var(--warn)}.reasons li.bad::before{background:var(--bad)}
+.ind{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.ind > div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.ind .val{font:600 30px/1.05 var(--display);font-variant-numeric:tabular-nums}
+.ind .val small{font:500 14px var(--body);color:var(--muted);margin-left:4px}
+.ind .meta{font-size:13px;color:var(--muted)}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:4px;background:var(--surface-2);color:var(--muted)}
+.chip.ok{background:var(--ok-soft);color:var(--accent)}.chip.warn{background:var(--warn-soft);color:var(--warn)}.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.multi{display:block;width:100%;height:280px}
+.how{margin-top:4px}
+.how summary{cursor:pointer;font-weight:600}
+.how dl{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:10px 18px;margin:14px 0 0;font-size:15px}
+.how dt{font-weight:700}
+.how dd{margin:0;color:var(--muted)}
+.how dd code{font:13px var(--mono);color:var(--ink);background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.warmup{font-size:14px;color:var(--warn);margin:6px 0 0}
+.seg.wrap{flex-wrap:wrap}
+.chart-head > .row{min-width:0;max-width:100%}
+#fieldSelect{min-width:0;max-width:100%;flex:1 1 180px;text-overflow:ellipsis}
+#pmcStats{margin-top:10px}
+@media (max-width:700px){ .plan-title{font-size:28px} .plan-nums{grid-template-columns:repeat(2,minmax(0,1fr))} .plan-nums b{font-size:21px} .how dl{grid-template-columns:1fr;gap:2px} .how dd{margin-bottom:10px} }
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:22px;width:min(560px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:15px;max-width:calc(100vw - 32px);z-index:20}
+.toast.bad{background:var(--bad)}
+
+@media (max-width:560px){
+  .top-inner{padding:10px 16px} main{padding:16px 16px 48px}
+  .brand h1{font-size:24px}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .tile{padding:12px 12px 8px}
+  .tile .val{font-size:26px}
+  .chart-wrap svg{height:260px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><h1>Garmin <span>Local</span></h1><span id="keyPill" class="pill">Comprobando…</span></div>
+    <div class="actions" id="topActions" hidden>
+      <button class="btn primary" id="btnUpdate" title="Descarga los días que faltan hasta hoy">Actualizar</button>
+      <button class="btn" id="btnSyncPanel">Histórico</button>
+      <button class="btn" id="btnSettings">Ajustes</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Configuración inicial -->
+  <section class="card setup" id="setup" hidden>
+    <h2>Conecta tu cuenta de Garmin</h2>
+    <p class="sub">Necesitas una clave de la Personal API. Se crea en un minuto y no requiere aprobación.</p>
+    <ol>
+      <li>Entra en <a href="https://connect.garmin.com/app/settings/personalApiToken" target="_blank" rel="noopener">la página de la clave personal en Garmin Connect</a> con tu cuenta.</li>
+      <li>Pulsa <b>Create Key</b>, acepta las condiciones y elige cuánto dura (hasta un año).</li>
+      <li>Copia la clave: Garmin solo la muestra una vez. Pégala aquí.</li>
+    </ol>
+    <div class="field">
+      <label class="label" for="keyInput">Clave de la Personal API</label>
+      <div class="row">
+        <input type="password" id="keyInput" autocomplete="off" placeholder="Pega aquí tu clave">
+        <button class="btn primary" id="btnSaveKey">Guardar y probar</button>
+      </div>
+      <p class="note">La clave se guarda solo en este equipo, en la carpeta <span class="mono">datos</span> de la aplicación.</p>
+      <p class="err" id="keyErr" hidden></p>
+    </div>
+    <div class="field" style="margin-top:22px">
+      <span class="label">¿Ya tienes tus datos en otro equipo?</span>
+      <p class="note">Importa una copia de seguridad (.zip) de Garmin Local, o los archivos <span class="mono">garmin.sqlite</span> y <span class="mono">config.json</span> de su carpeta <span class="mono">datos</span>. Con <span class="mono">config.json</span> también se importa tu clave.</p>
+      <div class="row"><label class="btn" for="importFile1">Importar archivo…</label></div>
+      <input type="file" id="importFile1" class="import-file" accept=".zip,.sqlite,.json,application/zip,application/json,application/octet-stream" hidden>
+    </div>
+  </section>
+
+  <!-- Sincronización -->
+  <section class="card" id="syncPanel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div><h2>Descargar histórico</h2><p class="sub">Se guarda en tu ordenador. Solo hace falta una vez; después basta con Actualizar.</p></div>
+      <button class="btn link" id="btnCloseSync">Cerrar</button>
+    </div>
+    <div class="sync-grid">
+      <div>
+        <div class="label">Desde</div>
+        <div class="row" style="margin-top:6px">
+          <input type="date" id="syncFrom">
+          <button class="btn small" data-years="1">1 año</button>
+          <button class="btn small" data-years="3">3 años</button>
+          <button class="btn small" data-years="15">Todo</button>
+        </div>
+        <p class="note" style="margin-top:8px">Cada año son unas 100 peticiones a Garmin, con pausas para no saturar. Un histórico largo tarda varios minutos.</p>
+      </div>
+      <div>
+        <div class="label">Qué datos</div>
+        <div class="checks" id="syncChecks" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnStartSync">Empezar descarga</button>
+      <span class="note" id="syncText"></span>
+    </div>
+    <div class="progress" id="syncBar" hidden><div></div></div>
+    <ul class="log" id="syncLog"></ul>
+    <div style="margin-top:14px"><div class="label">Lo que ya tienes guardado</div><div class="coverage" id="coverage"></div></div>
+  </section>
+
+  <!-- Panel -->
+  <section id="dash" hidden>
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div class="rangebar">
+        <div class="seg" id="rangeSeg">
+          <button data-r="30">30 días</button><button data-r="90">90 días</button><button data-r="365">1 año</button><button data-r="all">Todo</button>
+        </div>
+        <div class="dates"><input type="date" id="rStart" aria-label="Inicio"> – <input type="date" id="rEnd" aria-label="Fin"></div>
+      </div>
+
+      <div class="empty card" id="noData" hidden>
+        <h2>Aún no hay datos guardados</h2>
+        <p class="sub">Descarga tu histórico desde Garmin para empezar.</p>
+        <p><button class="btn primary" id="btnFirstSync">Descargar histórico</button></p>
+      </div>
+
+      <div id="forma" hidden style="display:flex;flex-direction:column;gap:20px">
+        <h2 class="section-title">Estado de forma</h2>
+        <section class="card plan" id="plan">
+          <div class="plan-head">
+            <div style="min-width:0">
+              <span class="label" id="planDay">Entreno recomendado</span>
+              <div class="plan-title" id="planTitle">—</div>
+              <p class="sub" id="planSummary"></p>
+            </div>
+            <span class="chip" id="planChip"></span>
+          </div>
+          <div class="seg wrap" id="planSports" role="tablist" aria-label="Deporte"></div>
+          <p class="plan-note" id="planNote" hidden></p>
+          <div class="plan-nums" id="planNums"></div>
+          <div class="plan-body">
+            <div style="min-width:0"><span class="label">Cómo</span><ul class="plan-steps" id="planSteps"></ul></div>
+            <div style="min-width:0"><span class="label">Por qué</span><ul class="reasons" id="reasons"></ul></div>
+          </div>
+          <p class="plan-rest" id="planRest" hidden></p>
+          <p class="note" id="planFoot"></p>
+          <p class="warmup" id="warmup" hidden></p>
+        </section>
+        <div class="ind" id="ind"></div>
+
+        <section class="card">
+          <div class="chart-head">
+            <div style="min-width:0">
+              <h2>Forma física, fatiga y frescura</h2>
+              <p class="sub">Forma física es tu carga media de 6 semanas; fatiga, la de la última semana. La frescura es la diferencia entre las dos.</p>
+            </div>
+            <div class="seg wrap" id="pmcSeg" aria-label="Periodo de la gráfica">
+              <button data-m="1">1 mes</button><button data-m="3">3 meses</button><button data-m="6">6 meses</button><button data-m="12">1 año</button><button data-m="36">3 años</button><button data-m="all">Todo</button>
+            </div>
+          </div>
+          <div class="stats" id="pmcStats"></div>
+          <div class="chart-wrap"><svg class="multi" id="pmc" role="img" aria-label="Forma física, fatiga y frescura"></svg><div class="tip" hidden></div></div>
+          <div class="legend" id="pmcLegend"></div>
+        </section>
+
+        <section class="card">
+          <h2>Variabilidad cardiaca y recuperación</h2>
+          <p class="sub">La franja es tu rango normal (últimos 60 días). Lo que cuenta es la media de 7 días: si sale de la franja, algo ha cambiado.</p>
+          <div class="chart-wrap"><svg class="multi" id="hrvChart" role="img" aria-label="VFC con rango normal"></svg><div class="tip" hidden></div></div>
+          <div class="legend" id="hrvLegend"></div>
+        </section>
+
+        <section class="card" id="vo2Card">
+          <div class="chart-head">
+            <div style="min-width:0">
+              <h2>VO2máx de Garmin</h2>
+              <p class="sub" id="vo2Sub">El que calcula tu reloj tras cada actividad de carrera o bici, leído del archivo original. Se mantiene hasta que el reloj da uno nuevo.</p>
+            </div>
+            <div class="seg wrap" id="vo2Seg" aria-label="Periodo de la gráfica">
+              <button data-m="1">1 mes</button><button data-m="3">3 meses</button><button data-m="6">6 meses</button><button data-m="12">1 año</button><button data-m="36">3 años</button><button data-m="all">Todo</button>
+            </div>
+          </div>
+          <p class="plan-rest" id="vo2Missing" hidden><span id="vo2MissingText"></span> <button class="btn small" data-vo2-missing>Leer los que faltan</button></p>
+          <div class="stats" id="vo2Stats"></div>
+          <div class="chart-wrap"><svg class="multi" id="vo2Chart" role="img" aria-label="VO2máx de carrera y bici"></svg><div class="tip" hidden></div></div>
+          <div class="legend" id="vo2Legend"></div>
+        </section>
+
+        <section class="card">
+          <h2>Volumen semanal</h2>
+          <p class="sub" id="weeksSub">Horas por semana y deporte.</p>
+          <div class="chart-wrap"><svg class="multi" id="weeks" role="img" aria-label="Horas por semana"></svg><div class="tip" hidden></div></div>
+          <div class="legend" id="weeksLegend"></div>
+        </section>
+
+        <section class="card how">
+          <details>
+            <summary>Cómo se calcula cada indicador</summary>
+            <p class="sub" id="params" style="margin-top:10px"></p>
+            <dl>
+              <dt>Carga (TRIMP)</dt>
+              <dd>TRIMP de Banister con la FC media de cada actividad: <code>min × ΔFC × 0,64·e^(1,92·ΔFC)</code> en hombres o <code>0,86·e^(1,67·ΔFC)</code> en mujeres, con <code>ΔFC = (FC media − FC reposo) / (FC máx − FC reposo)</code>.</dd>
+              <dt>Actividades sin pulso</dt>
+              <dd>Si la sesión tiene potencia, se usa su TSS multiplicado por la relación TRIMP ÷ TSS de las 40 sesiones con pulso y potencia más cercanas en el tiempo (esa relación cambia con el FTP que tengas configurado en Garmin). Si no, se usa la carga de entrenamiento de Garmin convertida con la mediana TRIMP ÷ carga de Garmin; ojo, Garmin da a las sesiones sin pulso más o menos la mitad de carga que a las que lo tienen. Son estimaciones y salen con ≈ en la tabla de actividades.</dd>
+              <dt>Forma física y fatiga</dt>
+              <dd>Medias exponenciales de la carga diaria: <code>hoy = ayer + (carga − ayer) / 42</code> para la forma física y lo mismo con 7 para la fatiga. Necesitan unas 6 semanas de datos para ser fiables.</dd>
+              <dt>Frescura</dt>
+              <dd>Forma física de ayer menos fatiga de ayer, expresada en % de la forma física. Zonas de Joe Friel en porcentaje, como en intervals.icu: menos de −30 % riesgo alto, −30 a −10 % carga productiva, −10 a +5 % neutra, +5 a +20 % fresco, más de +20 % pérdida de forma. Son orientativas, no ciencia exacta.</dd>
+              <dt>Ratio agudo:crónico</dt>
+              <dd>Media exponencial de 7 días entre la de 28 días, con <code>λ = 2/(N+1)</code>. La "zona óptima" de 0,8 a 1,3 no se ha confirmado en estudios posteriores; solo se avisa por encima de 1,5, donde sí aumentan las lesiones.</dd>
+              <dt>Monotonía y tensión</dt>
+              <dd>De Foster: monotonía = media de la carga diaria de 7 días / su desviación típica; tensión = carga semanal × monotonía. Monotonía alta significa entrenar siempre parecido, sin días suaves.</dd>
+              <dt>VFC</dt>
+              <dd>Según las guías del Instituto Australiano del Deporte: logaritmo de la VFC nocturna, media de 7 días y rango normal = media de 60 días ± 0,5 desviaciones típicas. Se muestra convertido de nuevo a milisegundos. Si cae por debajo 2–3 días, mejor sesiones suaves; 4 o más, recuperación.</dd>
+              <dt>Señal de alerta</dt>
+              <dd>VFC del día al menos un 15 % por debajo de su media de 7 días junto con FC en reposo por encima de tu media de 60 días más una desviación típica.</dd>
+              <dt>Entreno recomendado</dt>
+              <dd>Reglas, de más a menos restrictivas. <b>Descanso</b>: VFC 4 o más noches por debajo de tu rango; VFC baja y FC en reposo alta varios días; 6 o más días seguidos con señales de fatiga; frescura por debajo de −30 % con la VFC media baja; o menos de 5,5 h de sueño con recuperación baja. <b>Recuperación</b>: VFC 2–3 noches baja, o frescura por debajo de −40 %. <b>Suave</b>: una noche de VFC baja, FC en reposo alta, frescura entre −30 y −40 %, ratio agudo:crónico por encima de 1,5, 2 o más sesiones duras en 3 días, una dura ayer o semana muy monótona. <b>Salida larga</b>: sábado o domingo sin una salida de 2 h o más en la última semana. <b>Calidad</b> (umbral o VO2máx): recuperado, menos de 2 sesiones duras en 7 días y ninguna en los 2 últimos. Si no, <b>zona 2</b>. Sesión dura = efecto aeróbico de Garmin de 4 o más, o anaeróbico de 2,5 o más. La frescura en % solo cuenta con forma física de 30 o más. Cada sesión se da en cinco versiones: rodillo por potencia (% de tu FTP) y pulso; elíptica, carrera y cinta por pulso; natación por tus ritmos por 100 m del último año (rápido = percentil 20, medio = mediana, fácil = percentil 80). No propone correr si hiciste una carrera dura en las últimas 48 h, ni series de carrera si corriste en los dos últimos días; ni carrera en días de recuperación.</dd>
+              <dt>VO2máx de Garmin</dt>
+              <dd>El que calcula tu reloj, separado para carrera y bici. Garmin no lo da en su API, pero va dentro del archivo .FIT original de cada actividad, en un mensaje interno sin documentar (el 140, campo 7 = VO2máx × 65536 / 3,5). La aplicación descarga ese archivo de cada actividad de carrera o bici y lo lee. Solo acepta valores entre 15 y 90; si Garmin cambiara el formato, dejaría de mostrarlo en vez de dar una cifra errónea.</dd>
+            </dl>
+          </details>
+        </section>
+        <h2 class="section-title">Datos diarios</h2>
+      </div>
+
+      <div class="tiles" id="tiles"></div>
+
+      <section class="card" id="chartCard">
+        <div class="chart-head">
+          <div style="min-width:0">
+            <h2 id="chartTitle">—</h2>
+            <div class="stats" id="chartStats"></div>
+          </div>
+          <div class="row">
+            <label class="note"><input type="checkbox" id="maToggle" checked> Media de 7 días</label>
+            <select id="fieldSelect" aria-label="Dato a mostrar"></select>
+          </div>
+        </div>
+        <div class="chart-wrap" id="chartWrap"><svg id="chart" role="img" aria-label="Gráfica"></svg><div class="tip" id="tip" hidden></div></div>
+        <div class="legend" id="legend"></div>
+        <details class="raw" id="rawBox">
+          <summary>Ver los datos tal como los envía Garmin</summary>
+          <div class="row" style="margin-top:8px"><input type="date" id="rawDay"><button class="btn small" id="btnRaw">Mostrar</button></div>
+          <pre id="rawOut">Elige un día.</pre>
+        </details>
+      </section>
+
+      <section class="card">
+        <div class="chart-head">
+          <div><h2>Actividades</h2><p class="sub" id="actSummary"></p></div>
+          <select id="typeFilter" aria-label="Tipo de actividad"><option value="">Todos los tipos</option></select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Actividad</th><th class="num">Distancia</th><th class="num">Duración</th><th class="num">Ritmo / vel.</th><th class="num">FC media</th><th class="num">Desnivel +</th><th class="num">Carga</th><th class="num">VO2máx</th><th>Archivo</th></tr></thead>
+            <tbody id="actBody"></tbody>
+          </table>
+        </div>
+        <p class="empty" id="actEmpty" hidden>No hay actividades en este periodo.</p>
+      </section>
+    </div>
+  </section>
+</main>
+
+<dialog id="settings">
+  <h2 style="font:600 24px var(--display);margin:0 0 6px">Ajustes</h2>
+  <div class="field">
+    <span class="label">Clave guardada</span>
+    <p class="sub" id="keyInfo"></p>
+    <div class="row"><input type="password" id="keyInput2" autocomplete="off" placeholder="Pega una clave nueva"><button class="btn primary" id="btnSaveKey2">Cambiar</button></div>
+    <p class="err" id="keyErr2" hidden></p>
+    <div><button class="btn small" id="btnDeleteKey">Quitar la clave de este ordenador</button></div>
+  </div>
+  <div class="field" style="margin-top:20px">
+    <span class="label">Datos para el estado de forma</span>
+    <p class="note">Déjalos en blanco para que la aplicación los calcule con tus datos. Si conoces tu FC máxima real (de una prueba de esfuerzo o una carrera a tope), ponla: mejora mucho la precisión.</p>
+    <div class="row">
+      <label class="note" for="setMax">FC máx</label><input type="text" inputmode="numeric" id="setMax" style="width:80px;flex:none" placeholder="auto">
+      <label class="note" for="setRest">FC reposo</label><input type="text" inputmode="numeric" id="setRest" style="width:80px;flex:none" placeholder="auto">
+      <label class="note" for="setFtp">FTP</label><input type="text" inputmode="numeric" id="setFtp" style="width:80px;flex:none" placeholder="auto">
+      <select id="setSex" aria-label="Sexo"><option value="h">Hombre</option><option value="m">Mujer</option></select>
+      <button class="btn small primary" id="btnSaveSettings">Guardar</button>
+    </div>
+    <p class="err" id="setErr" hidden></p>
+  </div>
+  <div class="field" style="margin-top:20px">
+    <span class="label">Copia de seguridad</span>
+    <p class="note">Guarda en un solo archivo tus datos, tu clave y tus ajustes, para llevarlos a otro equipo o al móvil. Trátala como una contraseña: lleva tu clave de Garmin.</p>
+    <div class="row">
+      <a class="btn small" href="/api/export">Exportar copia</a>
+      <label class="btn small" for="importFile2">Importar…</label>
+    </div>
+    <input type="file" id="importFile2" class="import-file" accept=".zip,.sqlite,.json,application/zip,application/json,application/octet-stream" hidden>
+  </div>
+  <div class="field" style="margin-top:20px">
+    <span class="label">Probar un endpoint de Garmin</span>
+    <p class="note">Para usuarios avanzados: hace una consulta GET a la Personal API y muestra la respuesta.</p>
+    <div class="row"><input type="text" id="probePath" value="/userprofile-service/userprofile/settings"><button class="btn small" id="btnProbe">Probar</button></div>
+    <pre id="probeOut" hidden></pre>
+  </div>
+  <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" id="btnCloseSettings">Cerrar</button></div>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const S = { status:null, range:'90', start:null, end:null, data:null, sel:null, acts:[], polling:null };
+
+const TYPE_ES = {
+  running:'Carrera', trail_running:'Trail', treadmill_running:'Cinta', track_running:'Pista', street_running:'Carrera',
+  cycling:'Ciclismo', road_biking:'Carretera', mountain_biking:'BTT', gravel_cycling:'Gravel', indoor_cycling:'Ciclismo indoor', virtual_ride:'Rodillo virtual',
+  walking:'Caminata', hiking:'Senderismo', lap_swimming:'Piscina', open_water_swimming:'Aguas abiertas', swimming:'Natación',
+  strength_training:'Fuerza', cardio:'Cardio', hiit:'HIIT', yoga:'Yoga', pilates:'Pilates', elliptical:'Elíptica',
+  indoor_rowing:'Remo indoor', rowing:'Remo', multi_sport:'Multideporte', other:'Otro', padel:'Pádel', tennis:'Tenis', soccer:'Fútbol'
+};
+const typeName = t => TYPE_ES[t] || (t ? t.replace(/_/g,' ').replace(/^./, c => c.toUpperCase()) : '—');
+
+// ---------- utilidades
+async function api(path, opts={}){
+  const o = {...opts};
+  if (o.body && typeof o.body !== 'string'){ o.body = JSON.stringify(o.body); o.headers = {'Content-Type':'application/json'}; }
+  const r = await fetch(path, o);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('Error ' + r.status));
+  return j;
+}
+function toast(msg, bad){
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, bad ? 6000 : 3000);
+}
+const nf = (v, dec=0) => (v == null || isNaN(v)) ? '–' : Number(v).toLocaleString('es-ES', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+const iso = d => d.toISOString().slice(0,10);
+const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+const MONTHS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const fdate = s => { if (!s) return '—'; const [y,m,d] = s.slice(0,10).split('-'); return `${+d} ${MONTHS[m-1]} ${y}`; };
+const tms = s => Date.parse(s.slice(0,10) + 'T00:00:00Z');
+function dur(sec){
+  if (sec == null) return '–'; sec = Math.round(sec);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+}
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function tval(p, v){ if (v == null) return null; v = v * (p.scale || 1); if (p.grams && v > 1000) v = v / 1000; return v; }
+
+// ---------- estado y arranque
+async function loadStatus(){
+  S.status = await api('/api/status');
+  const st = S.status, pill = $('#keyPill');
+  if (!st.key_set){ pill.textContent = 'Sin clave'; pill.className = 'pill bad'; }
+  else if (st.token_error){ pill.textContent = 'La clave no funciona'; pill.className = 'pill bad'; pill.title = st.token_error; }
+  else { pill.textContent = 'Conectado'; pill.className = 'pill ok'; pill.title = ''; }
+  $('#setup').hidden = st.key_set;
+  $('#topActions').hidden = !st.key_set;
+  $('#dash').hidden = !st.key_set;
+  $('#keyInfo').textContent = st.key_set ? `Termina en …${st.key_hint}. Garmin te avisa por email una semana antes de que caduque.` : 'No hay ninguna clave guardada.';
+  renderCoverage(); renderSync();
+  return st;
+}
+function firstDay(){
+  const st = S.status; let f = null;
+  Object.values(st.datasets).forEach(d => { if (!f || d.first < f) f = d.first; });
+  if (st.activities.first && (!f || st.activities.first < f)) f = st.activities.first;
+  return f || addDays(st.today, -365);
+}
+function setRange(r){
+  S.range = r; const today = S.status.today;
+  if (r === 'custom'){ S.start = $('#rStart').value; S.end = $('#rEnd').value; }
+  else { S.end = today; S.start = r === 'all' ? firstDay() : addDays(today, -(+r) + 1); }
+  $('#rStart').value = S.start; $('#rEnd').value = S.end;
+  document.querySelectorAll('#rangeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === r));
+  loadData();
+}
+async function loadData(){
+  const hasData = Object.keys(S.status.datasets).length || S.status.activities.count;
+  $('#noData').hidden = !!hasData;
+  $('#chartCard').hidden = !hasData;
+  if (!hasData){ $('#tiles').innerHTML = ''; $('#forma').hidden = true; renderActs([]); return; }
+  const q = `start=${S.start}&end=${S.end}`;
+  try {
+    const [ov, acts, fit] = await Promise.all([api('/api/overview?' + q), api('/api/activities?' + q), api('/api/fitness?' + q)]);
+    S.data = ov; S.acts = acts;
+    renderFitness(fit);
+    loadPmc();
+    loadVo2();
+    renderTiles(); buildSelect(); renderActs(acts);
+    if (!S.sel || !validSel(S.sel)) S.sel = ov.presets.length ? 'p:' + ov.presets[0].id : (ov.fields[0] ? 'f:' + ov.fields[0] : null);
+    $('#fieldSelect').value = S.sel || '';
+    await showSelection();
+  } catch(e){ toast(e.message, true); }
+}
+const validSel = sel => sel.startsWith('p:') ? S.data.presets.some(p => 'p:' + p.id === sel) : S.data.fields.includes(sel.slice(2));
+
+// ---------- métricas
+function sparkline(vals){
+  if (vals.length < 2) return '<svg viewBox="0 0 100 30"></svg>';
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const pts = vals.map((v,i) => `${(i/(vals.length-1)*100).toFixed(2)},${(28 - (v-min)/span*26).toFixed(2)}`).join(' ');
+  return `<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+function renderTiles(){
+  const box = $('#tiles');
+  box.innerHTML = S.data.presets.map(p => {
+    const vals = p.points.map(x => tval(p, x[1])).filter(v => v != null);
+    const avg = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+    const last = p.points.length ? p.points[p.points.length-1] : null;
+    return `<button class="tile" data-sel="p:${p.id}" aria-pressed="${S.sel === 'p:'+p.id}">
+      <span class="label">${esc(p.label)}</span>
+      <span class="val">${nf(avg, p.dec)}<small>${esc(p.unit)} media</small></span>
+      <span class="meta">${last ? `Último: <span class="mono">${nf(tval(p,last[1]), p.dec)}</span> · ${fdate(last[0])}` : 'Sin datos en este periodo'}</span>
+      ${sparkline(vals)}</button>`;
+  }).join('');
+}
+function buildSelect(){
+  const sel = $('#fieldSelect'); const labels = S.status.labels;
+  let html = '<optgroup label="Métricas principales">' + S.data.presets.map(p => `<option value="p:${p.id}">${esc(p.label)}</option>`).join('') + '</optgroup>';
+  const groups = {};
+  S.data.fields.forEach(f => { const [ds, path] = f.split(/:(.*)/s); (groups[ds] = groups[ds] || []).push([f, path]); });
+  Object.keys(groups).forEach(ds => {
+    html += `<optgroup label="Todos los campos · ${esc(labels[ds] || ds)}">` + groups[ds].map(([f,p]) => `<option value="f:${esc(f)}">${esc(p)}</option>`).join('') + '</optgroup>';
+  });
+  sel.innerHTML = html;
+}
+async function showSelection(){
+  if (!S.sel) return;
+  let p, pts;
+  if (S.sel.startsWith('p:')){
+    p = S.data.presets.find(x => 'p:' + x.id === S.sel);
+    pts = p.points.map(x => [x[0], tval(p, x[1])]);
+  } else {
+    const field = S.sel.slice(2);
+    const r = await api(`/api/series?field=${encodeURIComponent(field)}&start=${S.start}&end=${S.end}`);
+    const isInt = r.points.every(x => Number.isInteger(x[1]));
+    p = {label: field.split(/:(.*)/s)[1], unit:'', dec: isInt ? 0 : 2, field};
+    pts = r.points;
+  }
+  S.cur = {p, pts};
+  document.querySelectorAll('.tile').forEach(t => t.setAttribute('aria-pressed', t.dataset.sel === S.sel));
+  $('#chartTitle').textContent = p.label + (p.unit ? ` (${p.unit})` : '');
+  const vals = pts.map(x => x[1]);
+  const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+  $('#chartStats').innerHTML = vals.length ? [
+    ['Media', avg], ['Mínimo', Math.min(...vals)], ['Máximo', Math.max(...vals)], ['Días con dato', vals.length]
+  ].map(([k,v],i) => `<div><span class="label">${k}</span><b>${nf(v, i===3 ? 0 : p.dec)}</b></div>`).join('') : '';
+  if (pts.length) $('#rawDay').value = pts[pts.length-1][0];
+  drawChart();
+}
+
+// ---------- gráfica
+function niceTicks(min, max, n=5){
+  if (min === max){ min -= 1; max += 1; }
+  const raw = (max - min) / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1,2,2.5,5,10].map(m => m*mag).find(s => s >= raw);
+  const lo = Math.floor(min/step)*step, hi = Math.ceil(max/step)*step, out = [];
+  for (let v = lo; v <= hi + step/2; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function movingAvg(pts, days=7){
+  const out = []; let j = 0, sum = 0;
+  for (let i = 0; i < pts.length; i++){
+    sum += pts[i][1];
+    while (tms(pts[i][0]) - tms(pts[j][0]) >= days*864e5){ sum -= pts[j][1]; j++; }
+    out.push([pts[i][0], sum/(i-j+1)]);
+  }
+  return out;
+}
+function drawChart(){
+  const svg = $('#chart'), wrap = $('#chartWrap'), tip = $('#tip');
+  if (!S.cur) return;
+  const {p, pts} = S.cur;
+  const W = wrap.clientWidth || 800, H = svg.clientHeight || 320;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  tip.hidden = true;
+  if (!pts.length){ svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)" font-size="15">No hay datos de este campo en el periodo elegido</text>`; $('#legend').innerHTML=''; return; }
+  const m = {l:52, r:14, t:14, b:30};
+  const x0 = tms(S.start), x1 = Math.max(tms(S.end), x0 + 864e5);
+  const vals = pts.map(x => x[1]);
+  const ticks = niceTicks(Math.min(...vals), Math.max(...vals));
+  const y0 = ticks[0], y1 = ticks[ticks.length-1];
+  const X = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => m.t + (1 - (v - y0) / (y1 - y0 || 1)) * (H - m.t - m.b);
+  let g = '';
+  ticks.forEach(v => { g += `<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${m.l-8}" y="${Y(v)+4}" text-anchor="end" font-size="12" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${nf(v, Math.abs(ticks[1]-ticks[0]) < 1 ? 1 : 0)}</text>`; });
+  const spanDays = (x1 - x0) / 864e5, nX = Math.max(2, Math.min(7, Math.floor(W / 120)));
+  for (let i = 0; i <= nX; i++){
+    const t = x0 + (x1 - x0) * i / nX, d = new Date(t);
+    const lab = spanDays > 400 ? `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+    g += `<text x="${X(t)}" y="${H-8}" text-anchor="${i===0?'start':i===nX?'end':'middle'}" font-size="12" fill="var(--muted)">${lab}</text>`;
+  }
+  const path = list => { let d = '', prev = null; list.forEach(([day,v]) => { const t = tms(day); d += (prev !== null && t - prev > 3*864e5 ? 'M' : (d ? 'L' : 'M')) + X(t).toFixed(1) + ',' + Y(v).toFixed(1); prev = t; }); return d; };
+  const base = Y(Math.max(y0, Math.min(0, y1)));
+  if (pts.length > 1 && y0 >= 0){
+    const area = path(pts) + `L${X(tms(pts[pts.length-1][0])).toFixed(1)},${Y(y0)}L${X(tms(pts[0][0])).toFixed(1)},${Y(y0)}Z`;
+    g += `<path d="${area}" fill="var(--accent)" opacity="0.08"/>`;
+  }
+  const showMA = $('#maToggle').checked && pts.length > 7;
+  g += `<path d="${path(pts)}" fill="none" stroke="var(--accent)" stroke-width="${showMA ? 1.3 : 2}" opacity="${showMA ? 0.55 : 1}" stroke-linejoin="round"/>`;
+  if (pts.length < 70) pts.forEach(([day,v]) => g += `<circle cx="${X(tms(day))}" cy="${Y(v)}" r="2.6" fill="var(--accent)"/>`);
+  let ma = null;
+  if (showMA){ ma = movingAvg(pts); g += `<path d="${path(ma)}" fill="none" stroke="var(--trend)" stroke-width="2.4" stroke-linejoin="round"/>`; }
+  const last = pts[pts.length-1];
+  g += `<circle cx="${X(tms(last[0]))}" cy="${Y(last[1])}" r="4.5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`;
+  g += `<line id="hairline" y1="${m.t}" y2="${H-m.b}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/><circle id="hdot" r="5" fill="var(--accent)" visibility="hidden"/>`;
+  g += `<rect x="${m.l}" y="${m.t}" width="${W-m.l-m.r}" height="${H-m.t-m.b}" fill="transparent" id="hit"/>`;
+  svg.innerHTML = g;
+  $('#legend').innerHTML = `<span><i style="background:var(--accent)"></i>Valor diario</span>` + (showMA ? `<span><i style="background:var(--trend)"></i>Media de 7 días</span>` : '');
+  const hit = svg.querySelector('#hit'), hl = svg.querySelector('#hairline'), hd = svg.querySelector('#hdot');
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width;
+    const t = x0 + (px - m.l) / (W - m.l - m.r) * (x1 - x0);
+    let lo = 0, hi = pts.length - 1;
+    while (hi - lo > 1){ const mid = (lo+hi) >> 1; tms(pts[mid][0]) < t ? lo = mid : hi = mid; }
+    const i = Math.abs(tms(pts[lo][0]) - t) < Math.abs(tms(pts[hi][0]) - t) ? lo : hi;
+    const [day, v] = pts[i], cx = X(tms(day)), cy = Y(v);
+    hl.setAttribute('x1', cx); hl.setAttribute('x2', cx); hl.setAttribute('visibility', 'visible');
+    hd.setAttribute('cx', cx); hd.setAttribute('cy', cy); hd.setAttribute('visibility', 'visible');
+    tip.innerHTML = `${fdate(day)} · <b>${nf(v, p.dec)}</b> ${esc(p.unit)}` + (ma ? ` · media ${nf(ma[i][1], p.dec)}` : '');
+    tip.style.left = Math.min(Math.max(cx * r.width / W, 70), r.width - 70) + 'px';
+    tip.style.top = (cy * r.height / H) + 'px'; tip.hidden = false;
+  };
+  hit.addEventListener('mousemove', move);
+  hit.addEventListener('mouseleave', () => { tip.hidden = true; hl.setAttribute('visibility','hidden'); hd.setAttribute('visibility','hidden'); });
+}
+
+// ---------- estado de forma
+const LV = {ok:'ok', warn:'warn', bad:'bad', info:''};
+const SPORTS = [['Carrera','var(--accent)'], ['Ciclismo','var(--c3)'], ['Natación','var(--c4)'], ['Caminar y montaña','var(--trend)'], ['Fuerza y otros','var(--c5)']];
+function formZone(v){
+  if (v == null) return null;
+  if (v < -30) return ['Riesgo alto','bad']; if (v < -10) return ['Carga productiva','ok'];
+  if (v < 5) return ['Zona neutra','ok']; if (v <= 20) return ['Fresco','ok']; return ['Perdiendo forma','warn'];
+}
+function lastWith(rows, key, back=4){ for (let i = rows.length-1; i >= Math.max(0, rows.length-back); i--) if (rows[i][key] != null) return rows[i]; return null; }
+function firstWith(rows, key){ return rows.find(r => r[key] != null) || null; }
+function sign(v, dec=1){ return v == null ? '–' : (v > 0 ? '+' : '') + nf(v, dec); }
+
+const KIND = {descanso:['Descanso',''], recuperacion:['Recuperación','warn'], suave:['Suave','warn'], aerobico:['Zona 2','ok'], larga:['Larga','ok'], umbral:['Calidad','bad'], vo2:['Calidad','bad']};
+function rangeText(r, unit){
+  if (!r) return null;
+  const [a, b] = r;
+  if (a != null && b != null) return `${nf(a)}–${nf(b)} ${unit}`;
+  if (b != null) return `hasta ${nf(b)} ${unit}`;
+  if (a != null) return `desde ${nf(a)} ${unit}`;
+  return null;
+}
+function renderPlan(p){
+  const card = $('#plan');
+  card.hidden = !p;
+  if (!p) return;
+  card.className = 'card plan k-' + p.kind;
+  $('#planDay').textContent = `Entreno recomendado · ${p.label}`;
+  $('#planTitle').textContent = p.title;
+  $('#planSummary').textContent = p.summary;
+  const k = KIND[p.kind] || ['', ''];
+  $('#planChip').className = 'chip ' + k[1]; $('#planChip').textContent = k[0];
+  const sports = p.sports || [];
+  const tabs = $('#planSports');
+  tabs.hidden = !sports.length;
+  if (!sports.some(s => s.sport === S.sport)){
+    let saved = null; try { saved = localStorage.getItem('planSport'); } catch(e){}
+    S.sport = (sports.find(s => s.sport === saved && s.ok) || sports.find(s => s.ok) || {}).sport;
+  }
+  tabs.innerHTML = sports.map(s => `<button type="button" role="tab" data-sport="${esc(s.sport)}" class="${s.ok ? '' : 'off'}" aria-pressed="${s.sport === S.sport}">${esc(s.sport)}</button>`).join('');
+  tabs.onclick = e => {
+    const b = e.target.closest('[data-sport]'); if (!b) return;
+    S.sport = b.dataset.sport; try { localStorage.setItem('planSport', S.sport); } catch(err){}
+    renderPlan(p);
+  };
+  const v = sports.find(s => s.sport === S.sport) || {minutes: p.minutes, power: p.power, hr: p.hr, steps: p.steps, ok: true};
+  $('#planNote').hidden = !v.note; $('#planNote').textContent = v.note || '';
+  const nums = [];
+  if (v.ok){
+    if (v.minutes) nums.push(['Duración', `${nf(v.minutes[0])}–${nf(v.minutes[1])} min`]);
+    const pw = rangeText(v.power, 'W'); if (pw) nums.push(['Potencia', pw]);
+    const hr = rangeText(v.hr, 'ppm'); if (hr) nums.push(['Pulso', hr]);
+    if (v.pace) nums.push(['Ritmo por 100 m', v.pace]);
+  }
+  $('#planNums').innerHTML = nums.map(([l, val]) => `<div><span class="label">${l}</span><b>${esc(val)}</b></div>`).join('');
+  $('#planNums').hidden = !nums.length;
+  const steps = sports.length ? (v.steps || []) : (p.steps || []);
+  $('#planSteps').innerHTML = steps.map(s => `<li>${esc(s)}</li>`).join('');
+  $('#planSteps').parentElement.hidden = !steps.length;
+  $('#reasons').innerHTML = (p.why || []).map(x => `<li class="${LV[x.level] || ''}">${esc(x.text)}</li>`).join('');
+  $('#planRest').hidden = !(p.rest_if && p.rest_if.length);
+  if (p.rest_if && p.rest_if.length) $('#planRest').textContent = `Cámbialo por descanso si al despertar ${p.rest_if.join(' o ')}.`;
+  const foot = [];
+  if (p.ftp) foot.push(`Potencia según tu FTP de ${nf(p.ftp)} W (${p.ftp_src}).`);
+  else foot.push('Sin FTP: ponlo en Ajustes para tener rangos de potencia.');
+  if (p.zones_source) foot.push(`Pulso según ${p.zones_source}.`);
+  if (sports.some(s => s.pace)) foot.push('Natación por tus ritmos del último año: el pulso de muñeca en el agua no es fiable.');
+  foot.push('Se recalcula cada vez que pulsas Actualizar. Si ese día ya has entrenado, te propone el de mañana.');
+  $('#planFoot').textContent = foot.join(' ');
+}
+
+function renderFitness(f){
+  S.fit = f;
+  const has = f.rows.length > 0;
+  $('#forma').hidden = !has;
+  if (!has) return;
+  const rows = f.rows;
+  renderPlan(f.plan);
+  const w = $('#warmup'), pp = f.params || {};
+  if (pp.acts_with_hr === 0 && !pp.acts_estimated && (pp.acts_without_hr || 0) > 0){
+    w.hidden = false;
+    w.textContent = !pp.hr_rest ? 'No encuentro tu FC en reposo en los datos de Garmin, así que no puedo calcular la carga. Ponla a mano en Ajustes.'
+      : !pp.hr_max ? 'No encuentro tu FC máxima, así que no puedo calcular la carga. Ponla a mano en Ajustes.'
+      : 'Ninguna actividad tiene pulso, así que no hay carga que calcular.';
+  } else {
+  w.hidden = !(f.reliable_from && f.reliable_from > S.status.today);
+  if (!w.hidden) w.textContent =`La forma física y la fatiga serán fiables a partir del ${fdate(f.reliable_from)}, cuando haya 6 semanas de actividades. Si descargas más histórico, lo serán ya.`;
+  }
+
+  const c = lastWith(rows, 'ctl', 1), c7 = rows.length > 7 ? rows[rows.length - 8] : null;
+  const fo = lastWith(rows, 'form', 1), z = fo && formZone(fo.form);
+  const ac = lastWith(rows, 'acwr', 1);
+  const hv = lastWith(rows, 'hrv7'), rh = lastWith(rows, 'rhr7'), vr = lastWith(rows, 'vo2_run', 1), vb = lastWith(rows, 'vo2_bike', 1), vr0 = firstWith(rows, 'vo2_run'), vb0 = firstWith(rows, 'vo2_bike');
+  const mo = lastWith(rows, 'mono', 1), sl = lastWith(rows, 'sleep7');
+  let hvChip = null;
+  if (hv && hv.hrv_lo != null) hvChip = hv.hrv7 < hv.hrv_lo ? ['Por debajo','warn'] : hv.hrv7 > hv.hrv_hi ? ['Por encima','ok'] : ['En tu rango','ok'];
+  let rhChip = null;
+  if (rh && rh.rhr_base != null && rh.rhr_sd != null) rhChip = rh.rhr7 > rh.rhr_base + rh.rhr_sd ? ['Más alta de lo normal','warn'] : ['Normal','ok'];
+  const acChip = ac ? (ac.acwr > 1.5 ? ['Subida brusca','warn'] : ac.acwr < 0.8 ? ['Carga bajando',''] : ['Progresión normal','ok']) : null;
+  const tile = (label, val, unit, dec, meta, chip) => `<div><span class="label">${label}</span>
+    <div class="val">${nf(val, dec)}${unit ? `<small>${unit}</small>` : ''}</div>
+    <div class="meta">${meta || ''}</div>${chip ? `<span class="chip ${chip[1]}">${chip[0]}</span>` : ''}</div>`;
+  $('#ind').innerHTML = [
+    c && tile('Forma física', c.ctl, '', 0, c7 ? `${sign(c.ctl - c7.ctl, 1)} en 7 días` : ''),
+    c && tile('Fatiga', c.atl, '', 0, 'Carga de la última semana'),
+    fo && tile('Frescura', fo.form, '%', 0, `TSB ${nf(fo.tsb, 0)}`, z),
+    ac && tile('Ratio agudo:crónico', ac.acwr, '', 2, 'Carga 7 días frente a 28', acChip),
+    hv && tile('VFC (7 días)', hv.hrv7, 'ms', 0, hv.hrv_lo != null ? `Rango normal ${nf(hv.hrv_lo,0)}–${nf(hv.hrv_hi,0)}` : 'Calculando rango…', hvChip),
+    rh && tile('FC reposo (7 días)', rh.rhr7, 'ppm', 0, rh.rhr_base != null ? `Media de 60 días: ${nf(rh.rhr_base, 0)}` : '', rhChip),
+    vb && tile('VO2máx bici', vb.vo2_bike, 'ml/kg/min', 0, 'Garmin · ' + (vb0 && vb0.vo2_bike !== vb.vo2_bike ? `${sign(vb.vo2_bike - vb0.vo2_bike, 1)} en el periodo` : 'sin cambios en el periodo')),
+    vr && tile('VO2máx carrera', vr.vo2_run, 'ml/kg/min', 0, 'Garmin · ' + (vr0 && vr0.vo2_run !== vr.vo2_run ? `${sign(vr.vo2_run - vr0.vo2_run, 1)} en el periodo` : 'sin cambios en el periodo')),
+    mo && tile('Monotonía', mo.mono, '', 2, `Tensión semanal ${nf(mo.strain)}`),
+    sl && tile('Sueño (7 días)', sl.sleep7, 'h', 1, 'Media por noche'),
+  ].filter(Boolean).join('');
+
+  const p = f.params || {};
+  $('#params').innerHTML = p.hr_max ? `Valores usados ahora: FC máxima <b>${nf(p.hr_max)}</b> ppm (${esc(p.hr_max_src)}), FC en reposo <b>${nf(p.hr_rest)}</b> ppm (${esc(p.hr_rest_src)}), coeficientes de ${p.sexo === 'm' ? 'mujer' : 'hombre'}. ${nf(p.acts_with_hr)} actividades con pulso usan el TRIMP; ${nf(p.acts_estimated || 0)} sin pulso se estiman (${nf(p.acts_est_tss || 0)} con su TSS de potencia; el resto con la carga de Garmin × ${nf(p.ratio, 3)}), marcadas con ≈ en la tabla${p.acts_without_hr ? `; ${nf(p.acts_without_hr)} no tienen ni pulso ni carga de Garmin y no cuentan` : ''}. Puedes cambiar los valores de FC en Ajustes.`
+    : 'Aún no hay actividades con pulso para estimar tu FC máxima. Puedes ponerla a mano en Ajustes.';
+  drawFitnessCharts();
+}
+
+function drawFitnessCharts(){
+  if (!S.fit || !S.fit.rows.length || $('#forma').hidden) return;
+  const rows = S.fit.rows;
+  drawMulti($('#pmc'), S.pmcRows && S.pmcRows.length ? S.pmcRows : rows, [
+    {key:'tsb', type:'bars', label:'Frescura (TSB)', color:'var(--c4)', neg:'var(--bad)'},
+    {key:'ctl', type:'line', label:'Forma física', color:'var(--accent)', width:2.4},
+    {key:'atl', type:'line', label:'Fatiga', color:'var(--trend)', width:1.6},
+  ], {zero:true, legend:'#pmcLegend', dec:0});
+  drawMulti($('#hrvChart'), rows, [
+    {type:'band', lo:'hrv_lo', hi:'hrv_hi', label:'Rango normal', color:'var(--accent)'},
+    {key:'hrv', type:'dots', label:'VFC nocturna', color:'var(--c5)'},
+    {key:'hrv7', type:'line', label:'Media de 7 días', color:'var(--accent)', width:2.4},
+  ], {legend:'#hrvLegend', dec:0, unit:'ms', empty:'No hay datos de VFC en este periodo'});
+  drawWeeks($('#weeks'), S.fit.weeks);
+  const vf = S.status && S.status.vo2files;
+  drawMulti($('#vo2Chart'), S.vo2Rows && S.vo2Rows.length ? S.vo2Rows : rows, [
+    {key:'vo2_bike', type:'line', label:'Bici', color:'var(--c3)', width:2.4},
+    {key:'vo2_run', type:'line', label:'Carrera', color:'var(--trend)', width:2.4},
+  ], {legend:'#vo2Legend', dec:1, empty: vf && vf.unread_activities ? 'Aún no se han leído los archivos de tus actividades. Pulsa Actualizar o descarga el histórico con la opción de VO2máx.' : 'No hay VO2máx de Garmin en este periodo'});
+}
+
+// Periodo propio de la gráfica de forma física, independiente del selector general
+function pmcStart(m){
+  if (m === 'all') return '0000-01-01';
+  const d = new Date(S.status.today + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - (+m)); return iso(d);
+}
+async function loadPmc(){
+  if (!S.fit || !S.fit.rows.length) return;
+  document.querySelectorAll('#pmcSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === S.pmcRange));
+  try {
+    const f = await api(`/api/fitness?start=${pmcStart(S.pmcRange)}&end=${S.status.today}`);
+    S.pmcRows = f.rows;
+  } catch(e){ toast(e.message, true); return; }
+  const rs = S.pmcRows.filter(r => r.ctl != null);
+  if (rs.length){
+    const a = rs[0], b = rs[rs.length-1], peak = rs.reduce((p, r) => r.ctl > p.ctl ? r : p, rs[0]);
+    const low = rs.filter(r => r.tsb != null).reduce((p, r) => (!p || r.tsb < p.tsb) ? r : p, null);
+    $('#pmcStats').innerHTML = [
+      ['Forma física ahora', nf(b.ctl, 0)],
+      ['Cambio en el periodo', sign(b.ctl - a.ctl, 0)],
+      ['Máxima', `${nf(peak.ctl, 0)} <span class="note">${fdate(peak.day)}</span>`],
+      low ? ['Frescura más baja', `${nf(low.tsb, 0)} <span class="note">${fdate(low.day)}</span>`] : null,
+    ].filter(Boolean).map(([k, v]) => `<div><span class="label">${k}</span><b>${v}</b></div>`).join('');
+  } else $('#pmcStats').innerHTML = '';
+  drawFitnessCharts();
+}
+document.querySelectorAll('#pmcSeg button').forEach(b => b.onclick = () => {
+  S.pmcRange = b.dataset.m;
+  try { localStorage.setItem('pmcRange', S.pmcRange); } catch(e){}
+  loadPmc();
+});
+try { S.pmcRange = localStorage.getItem('pmcRange') || '3'; } catch(e){ S.pmcRange = '3'; }
+
+// Periodo propio de la gráfica de VO2máx
+async function loadVo2(){
+  if (!S.fit || !S.fit.rows.length) return;
+  document.querySelectorAll('#vo2Seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === S.vo2Range));
+  try {
+    const f = await api(`/api/fitness?start=${pmcStart(S.vo2Range)}&end=${S.status.today}`);
+    S.vo2Rows = f.rows;
+  } catch(e){ toast(e.message, true); return; }
+  const stat = [];
+  [['vo2_bike', 'Bici'], ['vo2_run', 'Carrera']].forEach(([k, name]) => {
+    const rs = S.vo2Rows.filter(r => r[k] != null);
+    if (!rs.length) return;
+    const a = rs[0], b = rs[rs.length - 1], peak = rs.reduce((p, r) => r[k] > p[k] ? r : p, rs[0]);
+    stat.push([`${name} ahora`, nf(b[k], 1)]);
+    stat.push([`${name}: cambio`, sign(b[k] - a[k], 1)]);
+    stat.push([`${name}: máximo`, `${nf(peak[k], 1)} <span class="note">${fdate(peak.day)}</span>`]);
+  });
+  $('#vo2Stats').innerHTML = stat.map(([k, v]) => `<div><span class="label">${k}</span><b>${v}</b></div>`).join('');
+  drawFitnessCharts();
+}
+document.querySelectorAll('#vo2Seg button').forEach(b => b.onclick = () => {
+  S.vo2Range = b.dataset.m;
+  try { localStorage.setItem('vo2Range', S.vo2Range); } catch(e){}
+  loadVo2();
+});
+try { S.vo2Range = localStorage.getItem('vo2Range') || '12'; } catch(e){ S.vo2Range = '12'; }
+// Botón para leer el VO2máx de las actividades que faltan (en el panel de histórico y en la tarjeta)
+document.addEventListener('click', e => {
+  if (!e.target.closest('[data-vo2-missing]')) return;
+  startSync({mode: 'vo2'});
+});
+
+function xAxis(x0, x1, X, W, H){
+  let g = ''; const spanDays = (x1 - x0) / 864e5, nX = Math.max(2, Math.min(7, Math.floor(W / 120)));
+  for (let i = 0; i <= nX; i++){
+    const t = x0 + (x1 - x0) * i / nX, d = new Date(t);
+    const lab = spanDays > 400 ? `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+    g += `<text x="${X(t)}" y="${H-8}" text-anchor="${i===0?'start':i===nX?'end':'middle'}" font-size="12" fill="var(--muted)">${lab}</text>`;
+  }
+  return g;
+}
+function yAxis(ticks, Y, m, W, dec){
+  return ticks.map(v => `<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${m.l-8}" y="${Y(v)+4}" text-anchor="end" font-size="12" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${nf(v, dec)}</text>`).join('');
+}
+
+function drawMulti(svg, rows, defs, opts={}){
+  const wrap = svg.parentElement, tip = wrap.querySelector('.tip');
+  const W = wrap.clientWidth || 800, H = svg.clientHeight || 280;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); tip.hidden = true;
+  const m = {l:48, r:12, t:12, b:30};
+  const vals = [];
+  defs.forEach(d => rows.forEach(r => ['key','lo','hi'].forEach(k => { if (d[k] && r[d[k]] != null) vals.push(r[d[k]]); })));
+  if (!vals.length){
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)" font-size="15">${esc(opts.empty || 'Sin datos en este periodo')}</text>`;
+    if (opts.legend) $(opts.legend).innerHTML = ''; return;
+  }
+  if (opts.zero) vals.push(0);
+  const ticks = niceTicks(Math.min(...vals), Math.max(...vals)), y0 = ticks[0], y1 = ticks[ticks.length-1];
+  const x0 = tms(rows[0].day), x1 = Math.max(tms(rows[rows.length-1].day), x0 + 864e5);
+  const X = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => m.t + (1 - (v - y0) / (y1 - y0 || 1)) * (H - m.t - m.b);
+  let g = yAxis(ticks, Y, m, W, Math.abs(ticks[1] - ticks[0]) < 1 ? 1 : 0) + xAxis(x0, x1, X, W, H);
+  if (opts.zero && y0 < 0) g += `<line x1="${m.l}" x2="${W-m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--muted)" stroke-width="1"/>`;
+  const bw = Math.max(1, (W - m.l - m.r) / rows.length * 0.75);
+  defs.forEach(d => {
+    if (d.type === 'band'){
+      let run = [];
+      const flush = () => { if (run.length > 1){ const up = run.map(r => `${X(tms(r.day)).toFixed(1)},${Y(r[d.hi]).toFixed(1)}`), dn = run.slice().reverse().map(r => `${X(tms(r.day)).toFixed(1)},${Y(r[d.lo]).toFixed(1)}`); g += `<polygon points="${up.concat(dn).join(' ')}" fill="${d.color}" opacity="0.13"/>`; } run = []; };
+      rows.forEach(r => { if (r[d.lo] != null && r[d.hi] != null) run.push(r); else flush(); }); flush();
+    } else if (d.type === 'bars'){
+      const base = Y(Math.max(y0, Math.min(0, y1)));
+      rows.forEach(r => { const v = r[d.key]; if (v == null) return; const y = Y(v); g += `<rect x="${(X(tms(r.day)) - bw/2).toFixed(1)}" y="${Math.min(y, base).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.abs(base - y).toFixed(1)}" fill="${v < 0 && d.neg ? d.neg : d.color}" opacity="0.45"/>`; });
+    } else if (d.type === 'dots'){
+      const r0 = rows.length > 200 ? 1.6 : 2.4;
+      rows.forEach(r => { if (r[d.key] != null) g += `<circle cx="${X(tms(r.day)).toFixed(1)}" cy="${Y(r[d.key]).toFixed(1)}" r="${r0}" fill="${d.color}" opacity="0.7"/>`; });
+    } else {
+      let path = '', pen = false;
+      rows.forEach(r => { const v = r[d.key]; if (v == null){ pen = false; return; } path += (pen ? 'L' : 'M') + X(tms(r.day)).toFixed(1) + ',' + Y(v).toFixed(1); pen = true; });
+      g += `<path d="${path}" fill="none" stroke="${d.color}" stroke-width="${d.width || 2}" stroke-linejoin="round"/>`;
+    }
+  });
+  g += `<line class="hl" y1="${m.t}" y2="${H-m.b}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>`;
+  g += `<rect x="${m.l}" y="${m.t}" width="${W-m.l-m.r}" height="${H-m.t-m.b}" fill="transparent" class="hit"/>`;
+  svg.innerHTML = g;
+  if (opts.legend) $(opts.legend).innerHTML = defs.map(d => `<span><i style="background:${d.color};${d.type==='band'?'opacity:.35;height:8px':''}"></i>${esc(d.label)}</span>`).join('');
+  const hl = svg.querySelector('.hl');
+  svg.querySelector('.hit').addEventListener('mousemove', ev => {
+    const rc = svg.getBoundingClientRect(), px = (ev.clientX - rc.left) * W / rc.width;
+    const t = x0 + (px - m.l) / (W - m.l - m.r) * (x1 - x0);
+    const i = Math.max(0, Math.min(rows.length - 1, Math.round((t - x0) / 864e5)));
+    const r = rows[i], cx = X(tms(r.day));
+    hl.setAttribute('x1', cx); hl.setAttribute('x2', cx); hl.setAttribute('visibility', 'visible');
+    const parts = defs.map(d => d.type === 'band'
+      ? (r[d.lo] != null ? `${d.label}: ${nf(r[d.lo], opts.dec)}–${nf(r[d.hi], opts.dec)}` : null)
+      : (r[d.key] != null ? `${d.label}: <b>${nf(r[d.key], opts.dec)}</b>` : null)).filter(Boolean);
+    tip.innerHTML = `${fdate(r.day)}<br>${parts.join('<br>') || 'Sin datos'}`;
+    tip.style.left = Math.min(Math.max(cx * rc.width / W, 90), rc.width - 90) + 'px';
+    tip.style.top = (m.t + 40) * rc.height / H + 'px'; tip.style.transform = 'translate(-50%,0)'; tip.hidden = false;
+  });
+  svg.querySelector('.hit').addEventListener('mouseleave', () => { tip.hidden = true; hl.setAttribute('visibility','hidden'); });
+}
+
+function drawWeeks(svg, weeks){
+  const wrap = svg.parentElement, tip = wrap.querySelector('.tip');
+  const W = wrap.clientWidth || 800, H = svg.clientHeight || 280;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); tip.hidden = true;
+  $('#weeksLegend').innerHTML = SPORTS.map(([n,c]) => `<span><i style="background:${c};height:8px"></i>${n}</span>`).join('');
+  if (!weeks.length){ svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)" font-size="15">No hay actividades en este periodo</text>`; $('#weeksSub').textContent = 'Horas por semana y deporte.'; return; }
+  const tot = weeks.reduce((s,w) => s + w.hours, 0);
+  $('#weeksSub').textContent = `Media de ${nf(tot / weeks.length, 1)} h por semana en las ${weeks.length} semanas con actividad del periodo.`;
+  const m = {l:40, r:12, t:12, b:30};
+  const ticks = niceTicks(0, Math.max(...weeks.map(w => w.hours), 1)), y1 = ticks[ticks.length-1];
+  const x0 = tms(weeks[0].week), x1 = tms(weeks[weeks.length-1].week) + 7*864e5;
+  const X = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => m.t + (1 - v / y1) * (H - m.t - m.b);
+  const bw = Math.max(1.5, (W - m.l - m.r) / ((x1 - x0) / (7*864e5)) * 0.78);
+  let g = yAxis(ticks, Y, m, W, Math.abs(ticks[1] - ticks[0]) < 1 ? 1 : 0) + xAxis(x0, x1, X, W, H);
+  weeks.forEach((w, i) => {
+    let acc = 0; const x = X(tms(w.week) + 3.5*864e5) - bw/2;
+    SPORTS.forEach(([n, c]) => { const h = w.by[n] || 0; if (!h) return; g += `<rect x="${x.toFixed(1)}" y="${Y(acc + h).toFixed(1)}" width="${bw.toFixed(1)}" height="${(Y(acc) - Y(acc + h)).toFixed(1)}" fill="${c}"/>`; acc += h; });
+    g += `<rect x="${x.toFixed(1)}" y="${m.t}" width="${bw.toFixed(1)}" height="${H-m.t-m.b}" fill="transparent" data-i="${i}"/>`;
+  });
+  svg.innerHTML = g;
+  svg.onmousemove = ev => {
+    const el = ev.target.closest('[data-i]'); if (!el){ tip.hidden = true; return; }
+    const w = weeks[+el.dataset.i], rc = svg.getBoundingClientRect();
+    tip.innerHTML = `Semana del ${fdate(w.week)}<br><b>${nf(w.hours, 1)} h</b> · ${nf(w.km, 0)} km · carga ${nf(w.load)}<br>` + SPORTS.filter(([n]) => w.by[n]).map(([n]) => `${n}: ${nf(w.by[n], 1)} h`).join('<br>');
+    const cx = (X(tms(w.week) + 3.5*864e5)) * rc.width / W;
+    tip.style.left = Math.min(Math.max(cx, 90), rc.width - 90) + 'px'; tip.style.top = '20px'; tip.style.transform = 'translate(-50%,0)'; tip.hidden = false;
+  };
+  svg.onmouseleave = () => tip.hidden = true;
+}
+
+// ---------- actividades
+function speedCell(a){
+  if (!a.distance || !a.duration) return '–';
+  const t = a.type || '';
+  if (/swim/.test(t)) return dur(a.duration / (a.distance/100)) + ' /100 m';
+  if (/run|walk|hik/.test(t)) return dur(a.duration / (a.distance/1000)) + ' /km';
+  return nf(a.distance / a.duration * 3.6, 1) + ' km/h';
+}
+function renderActs(acts){
+  const filt = $('#typeFilter'), cur = filt.value;
+  const types = [...new Set(acts.map(a => a.type).filter(Boolean))].sort((a,b) => typeName(a).localeCompare(typeName(b)));
+  filt.innerHTML = '<option value="">Todos los tipos</option>' + types.map(t => `<option value="${esc(t)}">${esc(typeName(t))}</option>`).join('');
+  if (types.includes(cur)) filt.value = cur;
+  const list = acts.filter(a => !filt.value || a.type === filt.value);
+  const km = list.reduce((s,a) => s + (a.distance || 0), 0) / 1000, secs = list.reduce((s,a) => s + (a.duration || 0), 0);
+  $('#actSummary').textContent = list.length ? `${nf(list.length)} actividades · ${nf(km, 0)} km · ${nf(secs/3600, 0)} h` : '';
+  $('#actEmpty').hidden = list.length > 0;
+  $('#actBody').innerHTML = list.slice(0, 500).map(a => `<tr>
+    <td>${fdate(a.start)}<div class="t">${esc((a.start || '').slice(11,16))}</div></td>
+    <td>${esc(a.name || typeName(a.type))}<div class="t">${esc(typeName(a.type))}</div></td>
+    <td class="num">${a.distance ? nf(a.distance/1000, 2) + ' km' : '–'}</td>
+    <td class="num">${dur(a.duration)}</td>
+    <td class="num">${speedCell(a)}</td>
+    <td class="num">${a.avgHR ? nf(a.avgHR) + ' ppm' : '–'}</td>
+    <td class="num">${a.elev ? nf(a.elev) + ' m' : '–'}</td>
+    <td class="num" ${a.load_est ? 'title="Sin pulso: estimada con la carga de Garmin"' : ''}>${a.load != null ? (a.load_est ? '≈ ' : '') + nf(a.load) : '–'}</td>
+    <td class="num">${a.vo2 != null ? nf(a.vo2, 1) : '–'}</td>
+    <td><a href="/api/activity/${a.id}/download">Descargar</a></td></tr>`).join('')
+    + (list.length > 500 ? `<tr><td colspan="10" class="t">Se muestran las 500 más recientes. Acorta el periodo para ver el resto.</td></tr>` : '');
+}
+
+// ---------- sincronización
+function renderCoverage(){
+  const st = S.status, rows = Object.entries(st.labels).map(([k, label]) => {
+    const d = st.datasets[k];
+    return `<div><span>${esc(label)}</span><span class="mono">${d ? `${d.first.slice(0,7)} → ${d.last.slice(0,7)}` : 'nada'}</span></div>`;
+  });
+  rows.push(`<div><span>Actividades</span><span class="mono">${st.activities.count ? nf(st.activities.count) : 'nada'}</span></div>`);
+  const vf = st.vo2files || {};
+  rows.push(`<div><span>VO2máx de Garmin</span><span class="mono">${vf.with_vo2 ? `${nf(vf.with_vo2)} act.` : 'nada'}${vf.unread_activities ? ` · faltan ${nf(vf.unread_activities)}` : ''}</span></div>`);
+  if (vf.unread_activities) rows.push(`<div><span>Faltan ${nf(vf.unread_activities)} actividades de carrera o bici por leer</span><button class="btn small" data-vo2-missing ${st.sync.running ? 'disabled' : ''}>Leer los que faltan</button></div>`);
+  const miss = $('#vo2Missing');
+  if (miss){
+    miss.hidden = !vf.unread_activities || st.sync.running;
+    $('#vo2MissingText').textContent = vf.unread_activities ? `Faltan ${nf(vf.unread_activities)} actividades de carrera o bici por leer (unos ${nf(Math.ceil(vf.unread_activities / 60))} min).` : '';
+  }
+  $('#coverage').innerHTML = rows.join('');
+  if (!$('#syncChecks').children.length){
+    $('#syncChecks').innerHTML = Object.entries(st.labels).map(([k,l]) => `<label><input type="checkbox" value="${k}" checked> ${esc(l)}</label>`).join('')
+      + '<label><input type="checkbox" value="__acts" checked> Actividades</label>'
+      + '<label><input type="checkbox" value="__vo2" checked> VO2máx de Garmin (descarga el archivo de cada actividad de carrera o bici; tarda más)</label>';
+  }
+}
+function renderSync(){
+  const sy = S.status.sync, bar = $('#syncBar');
+  $('#btnStartSync').disabled = sy.running; $('#btnUpdate').disabled = sy.running;
+  $('#btnUpdate').textContent = sy.running ? `Descargando ${sy.total ? Math.round(sy.done/sy.total*100) : 0} %` : 'Actualizar';
+  bar.hidden = !sy.running && !sy.finished;
+  bar.firstElementChild.style.width = (sy.total ? sy.done / sy.total * 100 : 0) + '%';
+  $('#syncText').textContent = sy.running ? `${sy.current} (${sy.done}/${sy.total})` :
+    sy.finished ? `Última descarga: ${nf(sy.saved)} registros guardados${sy.errors.length ? `, ${sy.errors.length} avisos` : ''}.` : '';
+  $('#syncLog').innerHTML = sy.errors.slice(-8).map(e => `<li>${esc(e)}</li>`).join('');
+}
+async function startSync(body){
+  try { await api('/api/sync', {method:'POST', body}); toast('Descarga en marcha'); await loadStatus(); poll(); }
+  catch(e){ toast(e.message, true); }
+}
+function poll(){
+  if (S.polling) return;
+  S.polling = setInterval(async () => {
+    const st = await loadStatus().catch(() => null);
+    if (st && !st.sync.running){
+      clearInterval(S.polling); S.polling = null;
+      toast(st.sync.errors.length ? `Descarga terminada con ${st.sync.errors.length} avisos` : 'Datos actualizados', st.sync.errors.length > 0);
+      setRange(S.range);
+    }
+  }, 1500);
+}
+
+// ---------- clave
+async function saveKey(input, errEl){
+  const key = input.value.trim(); errEl.hidden = true;
+  if (!key){ errEl.textContent = 'Pega tu clave antes de guardar.'; errEl.hidden = false; return; }
+  try {
+    await api('/api/key', {method:'POST', body:{key}});
+    input.value = ''; toast('Clave guardada. Garmin la ha aceptado.');
+    await loadStatus(); $('#settings').close(); setRange(S.range);
+  } catch(e){ errEl.textContent = e.message; errEl.hidden = false; await loadStatus().catch(()=>{}); }
+}
+
+// ---------- eventos
+$('#btnSaveKey').onclick = () => saveKey($('#keyInput'), $('#keyErr'));
+$('#btnSaveKey2').onclick = () => saveKey($('#keyInput2'), $('#keyErr2'));
+$('#keyInput').onkeydown = e => { if (e.key === 'Enter') $('#btnSaveKey').click(); };
+$('#btnDeleteKey').onclick = async () => {
+  const b = $('#btnDeleteKey');
+  if (!b.dataset.armed){ b.dataset.armed = '1'; b.textContent = 'Pulsa otra vez para confirmar'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'Quitar la clave de este ordenador'; }, 4000); return; }
+  await api('/api/key/delete', {method:'POST'}); $('#settings').close(); await loadStatus(); toast('Clave quitada');
+};
+$('#btnSettings').onclick = () => {
+  const s = S.status.settings || {};
+  $('#setMax').value = s.fc_max ?? ''; $('#setRest').value = s.fc_reposo ?? ''; $('#setFtp').value = s.ftp ?? ''; $('#setSex').value = s.sexo || 'h';
+  $('#setErr').hidden = true; $('#settings').showModal();
+};
+$('#btnSaveSettings').onclick = async () => {
+  $('#setErr').hidden = true;
+  try {
+    await api('/api/settings', {method:'POST', body:{fc_max: $('#setMax').value.trim().replace(',', '.'), fc_reposo: $('#setRest').value.trim().replace(',', '.'), ftp: $('#setFtp').value.trim().replace(',', '.'), sexo: $('#setSex').value}});
+    await loadStatus(); $('#settings').close(); toast('Ajustes guardados. Recalculado.'); loadData();
+  } catch(e){ $('#setErr').textContent = e.message; $('#setErr').hidden = false; }
+};
+$('#btnCloseSettings').onclick = () => $('#settings').close();
+document.querySelectorAll('.import-file').forEach(inp => inp.onchange = async () => {
+  const f = inp.files && inp.files[0]; inp.value = '';
+  if (!f) return;
+  toast(`Importando ${f.name}…`);
+  try {
+    const r = await fetch('/api/import', {method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: f});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('Error ' + r.status));
+    toast('Importado: ' + j.imported.join(' y ') + '.');
+    try { $('#settings').close(); } catch(e){}
+    await loadStatus(); setRange(S.range);
+  } catch(e){ toast(e.message, true); }
+});
+$('#btnProbe').onclick = async () => {
+  const out = $('#probeOut'); out.hidden = false; out.textContent = 'Consultando…';
+  try { const r = await api('/api/probe?path=' + encodeURIComponent($('#probePath').value.trim())); out.textContent = JSON.stringify(r.result, null, 2); }
+  catch(e){ out.textContent = e.message; }
+};
+$('#btnSyncPanel').onclick = $('#btnFirstSync').onclick = () => { $('#syncPanel').hidden = false; $('#syncPanel').scrollIntoView({behavior:'smooth'}); };
+$('#btnCloseSync').onclick = () => $('#syncPanel').hidden = true;
+document.querySelectorAll('[data-years]').forEach(b => b.onclick = () => { $('#syncFrom').value = addDays(S.status.today, -365 * +b.dataset.years); });
+$('#btnStartSync').onclick = () => {
+  const checks = [...document.querySelectorAll('#syncChecks input:checked')].map(i => i.value);
+  startSync({start: $('#syncFrom').value, datasets: checks.filter(c => !c.startsWith('__')), activities: checks.includes('__acts'), vo2: checks.includes('__vo2')});
+};
+$('#btnUpdate').onclick = () => startSync({mode:'update'});
+document.querySelectorAll('#rangeSeg button').forEach(b => b.onclick = () => setRange(b.dataset.r));
+$('#rStart').onchange = $('#rEnd').onchange = () => { if ($('#rStart').value && $('#rEnd').value) setRange('custom'); };
+$('#tiles').onclick = e => { const t = e.target.closest('.tile'); if (t){ S.sel = t.dataset.sel; $('#fieldSelect').value = S.sel; showSelection(); $('#chartCard').scrollIntoView({behavior:'smooth', block:'nearest'}); } };
+$('#fieldSelect').onchange = e => { S.sel = e.target.value; showSelection(); };
+$('#maToggle').onchange = drawChart;
+$('#typeFilter').onchange = () => renderActs(S.acts);
+$('#btnRaw').onclick = async () => {
+  const field = S.sel.startsWith('p:') ? S.data.presets.find(p => 'p:' + p.id === S.sel).field : S.sel.slice(2);
+  const ds = field.split(':')[0], day = $('#rawDay').value;
+  try { const r = await api(`/api/raw?dataset=${ds}&day=${day}`); $('#rawOut').textContent = r ? JSON.stringify(r, null, 2) : `No hay datos de «${S.status.labels[ds] || ds}» ese día.`; }
+  catch(e){ $('#rawOut').textContent = e.message; }
+};
+new ResizeObserver(() => { drawChart(); drawFitnessCharts(); }).observe($('#chartWrap'));
+
+(async () => {
+  try {
+    const st = await loadStatus();
+    $('#syncFrom').value = addDays(st.today, -365);
+    if (st.sync.running) poll();
+    if (st.key_set) setRange('90');
+  } catch(e){
+    $('#keyPill').textContent = 'Sin conexión con la aplicación'; $('#keyPill').className = 'pill bad';
+    toast('No responde el servidor local. ¿Sigue abierta la ventana de Garmin Local?', true);
+  }
+})();
+</script>
+</body>
+</html>

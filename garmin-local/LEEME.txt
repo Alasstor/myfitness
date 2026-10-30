@@ -1,0 +1,54 @@
+﻿GARMIN LOCAL
+Panel en tu ordenador para consultar tus datos de Garmin Connect con la Personal API oficial.
+
+QUÉ NECESITAS
+1. Python 3.9 o superior. Si no lo tienes, instálalo desde https://www.python.org/downloads/
+   y marca la casilla "Add python.exe to PATH" durante la instalación. No hace falta nada más.
+2. Una clave de la Personal API de Garmin:
+   https://connect.garmin.com/app/settings/personalApiToken
+   Pulsa "Create Key", acepta las condiciones y elige la caducidad (hasta un año).
+   Copia la clave: Garmin solo la muestra una vez.
+
+CÓMO SE USA
+1. Descomprime esta carpeta donde quieras (por ejemplo, en Documentos).
+2. Haz doble clic en "iniciar.bat". Se abre una ventana negra y, a continuación, el panel
+   en tu navegador (http://localhost:8765). Deja la ventana negra abierta mientras lo uses.
+3. Pega tu clave y pulsa "Guardar y probar".
+4. Pulsa "Histórico", elige desde cuándo y "Empezar descarga". La primera vez tarda unos
+   minutos si pides varios años. Después, basta con pulsar "Actualizar".
+5. Para cerrarla, cierra la ventana negra.
+
+QUÉ TIENE
+- Entreno recomendado del día (o de mañana si ya entrenaste), recalculado cada vez que
+  pulsas Actualizar: descanso, recuperación, suave, zona 2, salida larga o calidad, con
+  duración, potencia según tu FTP y pulso según tus zonas de Garmin.
+- Estado de forma: valoración del día, forma física, fatiga y frescura (TRIMP de Banister
+  y modelo de 42/7 días), ratio agudo:crónico, monotonía, VFC frente a tu rango normal,
+  FC en reposo, VO2máx de Garmin (carrera y bici, leído del archivo de cada
+  actividad) y volumen semanal por deporte. En el panel, "Cómo se
+  calcula cada indicador" explica cada fórmula. Pon tu FC máxima real en Ajustes si la sabes.
+- Métricas diarias: pasos, distancia, FC en reposo, VFC, sueño y su puntuación, estrés,
+  Body Battery, calorías activas y peso, con media del periodo y último valor.
+- Gráfica de cualquier dato que envíe Garmin, con media de 7 días.
+- Lista de actividades con filtro por tipo y descarga del archivo original de cada una.
+- "Ver los datos tal como los envía Garmin", para revisar cualquier día.
+- En Ajustes, "Probar un endpoint" para consultar cualquier otra ruta de la API.
+
+VO2MÁX DE GARMIN
+La API no lo da directamente: la aplicación descarga el archivo original de cada actividad
+de carrera o bici y lo lee de ahí. "Actualizar" lo hace solo con las actividades nuevas.
+Para el histórico, usa "Histórico" con la casilla "VO2máx de Garmin" marcada (tarda más).
+
+DÓNDE SE GUARDA TODO
+En la carpeta "datos", junto a la aplicación:
+- config.json: tu clave. No compartas este archivo.
+- garmin.sqlite: tus datos descargados.
+Para empezar de cero, cierra la aplicación y borra la carpeta "datos".
+La aplicación solo atiende a este ordenador: nadie más de tu red puede abrirla.
+
+SI ALGO FALLA
+- "Garmin no acepta la clave": revisa que esté bien copiada o crea otra.
+- Alguna métrica no aparece: puede que tu reloj no la mida o que Garmin la envíe con otro
+  nombre. Búscala en el desplegable de la gráfica, en "Todos los campos".
+- Avisos durante la descarga: aparecen en el panel de Histórico. Si se repiten, copia el
+  mensaje y pásaselo a Claude.

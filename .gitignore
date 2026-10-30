@@ -1,0 +1,22 @@
+# Datos personales: nunca al repositorio
+garmin-local/datos/
+datos/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+config.json
+*.keystore
+*.jks
+
+# Python
+__pycache__/
+*.pyc
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
